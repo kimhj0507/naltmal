@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>낱말 채집단</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
+<style>
+/* Layout: 한 화면 앱. 위 띠, 가운데 화면, 아래 탭. 교실 게시판에 붙이는 공판화 인쇄물 같은 한 가지 세계로 고정한다. */
+:root{
+  color-scheme:light;
+  --ink:#20246b; --ink-soft:#5a5f9e; --paper:#fbfdf3; --field:#e6f4d3; --line:#c9d5b4;
+  --sun:#ffd23f; --pink:#ff7d9c; --sky:#86d6f7; --mint:#7fe0bb; --violet:#c3a6ff; --danger:#c22750; --ok:#0f7a55;
+  --display:"Black Han Sans","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --pen:"Gowun Batang","AppleMyungjo","Batang",serif;
+}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font:16px/1.6 var(--body);overflow:hidden}
+*{box-sizing:border-box}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--pink);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance;line-height:1.25}
+p{margin:0}
+#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+header{display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--paper);padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header h1{font-size:21px;color:var(--sun);white-space:nowrap}
+#tally{margin-left:auto;font-variant-numeric:tabular-nums;font-size:14px;white-space:nowrap}
+#tally b{font-family:var(--display);font-weight:400;font-size:18px;color:var(--sun)}
+main{min-height:0;position:relative}
+.view{position:absolute;inset:0;overflow:auto}
+.scroll{max-width:820px;margin:0 auto;padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+#view-map{overflow:hidden;background:var(--field)}
+#map{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);max-width:calc(100% - 32px);width:max-content;background:var(--ink);color:var(--paper);padding:5px 14px;border-radius:6px;font-size:14px;pointer-events:none;text-align:center}
+#nestBtn{background:var(--sun);color:var(--ink);border:0;border-radius:4px;padding:4px 10px;font-family:var(--display);font-size:15px;white-space:nowrap}
+nav{display:grid;grid-template-columns:repeat(var(--tabs,4),1fr);background:var(--paper);border-top:3px solid var(--ink);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+nav button{background:none;border:0;padding:11px 2px;font-family:var(--display);font-size:16px;color:var(--ink-soft)}
+nav button[aria-current="page"]{background:var(--ink);color:var(--sun)}
+.lead{color:var(--ink-soft);max-width:60ch}
+.btn{background:var(--sun);border:2px solid var(--ink);border-radius:6px;padding:9px 16px;box-shadow:3px 3px 0 var(--ink);font-family:var(--display);font-size:16px}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+.btn.ghost{background:var(--paper)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.chip{background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:3px 12px;font-size:15px}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.chip.used{background:var(--mint);font-weight:700}
+.tag{display:inline-block;font-size:12.5px;letter-spacing:.02em;padding:0 7px;border:1.5px solid var(--ink);border-radius:4px;background:var(--pos,var(--paper));white-space:nowrap}
+.dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px}
+.spec{background:var(--paper);border:2px solid var(--ink);padding:10px;display:grid;justify-items:center;gap:3px;text-align:center;position:relative}
+.spec.hit{cursor:pointer}
+.spec.miss{border-style:dashed;border-color:var(--ink-soft);color:var(--ink-soft)}
+.spec img{width:72px;height:72px}
+.spec b{font-family:var(--display);font-weight:400;font-size:19px;line-height:1.3}
+.spec small{font-size:12.5px}
+.stamp{position:absolute;top:6px;right:6px;font-size:11.5px;background:var(--pink);border:1.5px solid var(--ink);padding:0 5px;transform:rotate(5deg)}
+.stars{color:var(--ink);letter-spacing:1px;font-size:12.5px}
+label{font-size:14px;color:var(--ink-soft);display:grid;gap:4px}
+input[type=text],textarea,select{width:100%;background:var(--paper);border:2px solid var(--ink);border-radius:4px;padding:8px 10px;color:var(--ink)}
+textarea#draft{min-height:200px;font:17px/2 var(--pen);background-image:repeating-linear-gradient(transparent,transparent calc(2em - 1px),var(--line) calc(2em - 1px),var(--line) 2em);background-attachment:local;line-height:2em;padding-top:0}
+.brief{background:var(--ink);color:var(--paper);padding:14px 16px;display:grid;gap:4px}
+.brief h3{color:var(--sun);font-size:20px}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:15px}
+.checks li::before{content:"○ ";color:var(--ink-soft)}
+.checks li.ok{color:var(--ok);font-weight:700}
+.checks li.ok::before{content:"● ";color:var(--ok)}
+.checks li.bad{color:var(--danger);font-weight:700}
+.checks li.bad::before{content:"× ";color:var(--danger)}
+.work{background:var(--paper);border:2px solid var(--ink);padding:14px 16px;display:grid;gap:6px}
+.work p{font:17px/1.9 var(--pen);white-space:pre-wrap;overflow-wrap:anywhere}
+.work mark{background:var(--sun);color:inherit;padding:0 2px}
+.work footer{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;font-size:13.5px;color:var(--ink-soft);align-items:center}
+.link{background:none;border:0;padding:0;color:var(--danger);text-decoration:underline;font-size:13.5px}
+.meter{height:16px;border:2px solid var(--ink);background:var(--paper)}
+.meter i{display:block;height:100%;background:var(--pink)}
+.note{border:2px dashed var(--ink-soft);padding:10px 12px;font-size:15px;color:var(--ink)}
+table{border-collapse:collapse;width:100%}
+th,td{border:1.5px solid var(--ink);padding:5px 10px;text-align:left}
+td.code{font-family:var(--display);font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:.08em}
+ol.steps{margin:0;padding-left:1.4em;display:grid;gap:6px;max-width:65ch}
+section{display:grid;gap:10px;min-width:0}
+section>h2{font-size:21px}
+.over{position:fixed;inset:0;z-index:20;background:var(--ink);color:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;overflow:auto;padding-block:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));text-align:center}
+.over.light{background:rgba(32,36,107,.72)}
+.panel{background:var(--paper);color:var(--ink);border:3px solid var(--ink);box-shadow:6px 6px 0 var(--sun);padding:18px;width:min(440px,100%);display:grid;gap:10px;text-align:left}
+.panel h2{font-size:24px}
+#ring{width:min(320px,80vw,44vh);height:min(320px,80vw,44vh);flex:none}
+#catchTop{color:var(--sun);font-family:var(--display);font-size:clamp(30px,8vw,42px);line-height:1.2}
+#catchSub{max-width:42ch;min-height:1.6em}
+.opts{display:grid;gap:8px;width:min(440px,100%)}
+.opts button{background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:6px;padding:10px 12px;text-align:left;box-shadow:3px 3px 0 var(--sun)}
+.opts button.right{background:var(--mint)}
+.opts button.wrong{background:var(--pink)}
+#toast{position:fixed;z-index:30;left:50%;bottom:calc(68px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--sun);color:var(--ink);border:2px solid var(--ink);padding:7px 14px;max-width:calc(100% - 32px);width:max-content;font-size:15px;text-align:center}
+@media (prefers-reduced-motion:no-preference){.spec.hit{transition:transform .12s}.spec.hit:hover{transform:translateY(-3px)}}
+[hidden]{display:none!important}
+body{margin:0}
+#map{z-index:0;background:var(--field)}
+#hint{z-index:500}
+.leaflet-div-icon{background:none;border:0}
+.bug{width:52px;height:52px;display:block}
+.bug.far{opacity:.82}
+.ringfx{position:absolute;inset:-6px;border:3px dashed #ffb300;border-radius:50%}
+.safe{font-weight:700}
+#qr svg{width:220px;height:220px;display:block}
+input[type=checkbox]{width:20px;height:20px}
+.inline{display:flex;gap:8px;align-items:center;color:var(--ink)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+</head><body>
+<div id="app">
+  <header>
+    <h1>낱말 채집단</h1>
+    <div id="tally" aria-live="polite"></div>
+  </header>
+  <main>
+    <div class="view" id="view-map">
+      <div id="map" aria-label="내 주변 실제 지도"></div>
+      <div id="hint">위치를 찾는 중이에요</div>
+    </div>
+    <div class="view" id="view-dex" hidden></div>
+    <div class="view" id="view-write" hidden></div>
+    <div class="view" id="view-wall" hidden></div>
+    <div class="view" id="view-teacher" hidden></div>
+  </main>
+  <nav id="tabs"></nav>
+</div>
+<div id="overlay" hidden></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+/* ---------- 낱말 자료: 낱말|품사|뜻|예문|희귀도|활용형(선택) ---------- */
+const ZONES=[
+ {id:"sky",name:"하늘",words:`
+뭉게뭉게|s|구름이나 연기가 둥글게 피어오르는 모양|굴뚝 위로 흰 연기가 뭉게뭉게 피어올랐다.|1
+노을|n|해가 뜨거나 질 때 하늘이 붉게 물드는 현상|창문 가득 붉은 노을이 번졌다.|1
+아찔하다|a|갑자기 정신이 어지러울 만큼 놀랍거나 위태롭다|난간 아래를 보니 아찔했다.|1
+드넓다|a|활짝 트여 아주 넓다|눈앞에 드넓은 바다가 펼쳐졌다.|1
+펼쳐지다|v|눈앞에 넓게 나타나다|고개를 넘자 마을이 펼쳐졌다.|1|펼쳐
+어스름|n|해 질 무렵이나 새벽의 조금 어둑한 상태|저녁 어스름이 골목에 내려앉았다.|2
+윤슬|n|햇빛이나 달빛에 비쳐 반짝이는 잔물결|강 위로 윤슬이 눈부시게 흔들렸다.|3
+가없다|a|끝이 없다|어머니의 가없는 사랑이 떠올랐다.|3`},
+ {id:"music",name:"소리",words:`
+흥얼거리다|v|흥에 겨워 입속으로 계속 노래를 부르다|형은 설거지하며 노래를 흥얼거렸다.|1|흥얼거
+쩌렁쩌렁|s|목소리가 높고 크게 울리는 모양|선생님 목소리가 복도에 쩌렁쩌렁 울렸다.|1
+메아리|n|산이나 골짜기에서 소리가 되울려 오는 것|산 정상에서 외치자 메아리가 돌아왔다.|1
+떨림|n|몸이나 소리가 잘게 흔들리는 일|마이크를 든 손에 떨림이 느껴졌다.|1
+둥둥|s|북을 잇달아 두드리는 소리|멀리서 북소리가 둥둥 들려왔다.|1
+선율|n|소리의 높낮이와 길이가 어우러져 이어지는 가락|피아노 선율이 교실을 채웠다.|2
+애잔하다|a|몹시 가냘프고 애처롭다|낡은 오르골 소리가 애잔하게 들렸다.|3
+여운|n|소리나 일이 끝난 뒤에도 남아 있는 울림이나 느낌|노래가 끝나도 여운이 오래 남았다.|3`},
+ {id:"library",name:"생각",words:`
+소곤소곤|s|남이 듣지 않게 작은 목소리로 이야기하는 소리|뒷자리에서 소곤소곤 말소리가 들렸다.|1
+곰곰이|d|여러모로 깊이 생각하는 모양|그 말을 곰곰이 되짚어 보았다.|1
+책갈피|n|읽던 곳을 표시하려고 책 사이에 끼우는 것|낙엽을 말려 책갈피로 썼다.|1
+뒤적이다|v|물건을 이리저리 들추며 찾다|서랍을 뒤적이다 옛날 사진을 찾았다.|1|뒤적
+고요하다|a|조용하고 잠잠하다|시험이 시작되자 교실이 고요해졌다.|1
+실마리|n|일이나 사건을 풀어 나갈 수 있는 첫머리|낡은 쪽지가 사건의 실마리가 되었다.|2
+사무치다|v|마음속 깊이 스며들어 잊히지 않다|그날의 고마움이 뼈에 사무쳤다.|3|사무치,사무쳐,사무친
+아득하다|a|까마득히 멀거나 오래되어 희미하다|어릴 적 일이 아득하게 느껴졌다.|3`},
+ {id:"lab",name:"관찰",words:`
+뿌옇다|a|연기나 안개가 낀 것처럼 선명하지 않고 허옇다|김이 서려 안경이 뿌옇게 흐려졌다.|1|뿌옇,뿌연,뿌얘
+부글부글|s|물이 끓어오르는 소리, 화가 치밀어 오르는 모양|억울해서 속이 부글부글 끓었다.|1
+들여다보다|v|가까이서 자세히 살피다|현미경을 한참 들여다보았다.|1|들여다
+스며들다|v|속으로 배어들다|비가 흙 속으로 천천히 스며들었다.|1|스며
+비커|n|눈금이 있고 주둥이가 달린 원통형 유리 그릇|비커에 담긴 물이 파랗게 변했다.|1
+가설|n|사실인지 확인하기 전에 임시로 세워 보는 설명|실험으로 우리 모둠의 가설을 확인했다.|2
+미묘하다|a|뚜렷하게 말하기 어려울 만큼 섬세하고 야릇하다|두 사람 사이에 미묘한 기운이 흘렀다.|3
+경이롭다|a|놀랍고 신기하다|씨앗이 싹트는 모습은 경이로웠다.|3`},
+ {id:"cafe",name:"맛",words:`
+보글보글|s|적은 양의 물이 잇달아 끓는 소리|된장찌개가 보글보글 끓었다.|1
+군침|n|맛있는 것을 보거나 생각할 때 입안에 도는 침|고기 굽는 냄새에 군침이 돌았다.|1
+고소하다|a|볶은 깨나 참기름 같은 맛이나 냄새가 나다|고소한 냄새가 복도까지 퍼졌다.|1
+오물오물|s|음식을 입에 넣고 우물거리며 씹는 모양|동생이 떡을 오물오물 씹었다.|1
+허겁지겁|s|마음이 급해 몹시 서두르는 모양|늦잠을 자서 밥을 허겁지겁 먹었다.|1
+허기|n|몹시 배가 고픈 느낌|체육 시간이 끝나자 허기가 몰려왔다.|2
+포만감|n|배가 넘치도록 가득 찬 느낌|포만감에 눈꺼풀이 무거워졌다.|3
+감칠맛|n|입에 짝짝 당기는 맛|국물에 감칠맛이 돌았다.|3`},
+ {id:"hall",name:"마음",words:`
+쭈뼛쭈뼛|s|부끄럽거나 어색해 머뭇거리는 모양|전학생이 문 앞에서 쭈뼛쭈뼛 서 있었다.|1
+머뭇거리다|v|망설이며 자꾸 주저하다|말을 꺼내려다 머뭇거렸다.|1|머뭇거
+서먹하다|a|낯이 설거나 친하지 않아 어색하다|다툰 뒤로 친구와 서먹해졌다.|1
+귓속말|n|남의 귀 가까이에 대고 소곤거리는 말|짝이 내게 귓속말을 건넸다.|1
+눈치|n|남의 마음을 얼른 알아채는 힘|눈치 빠른 동생이 얼른 자리를 비켰다.|1
+뾰로통하다|a|못마땅해 얼굴에 성난 빛이 있다|동생이 입을 내밀고 뾰로통하게 앉아 있었다.|2
+겸연쩍다|a|쑥스럽거나 미안해 어색하다|칭찬을 듣자 겸연쩍어 머리를 긁었다.|3
+속절없이|d|어찌할 도리 없이|시간은 속절없이 흘러갔다.|3`},
+ {id:"garden",name:"자연",words:`
+살랑살랑|s|바람이 가볍게 부는 모양|봄바람이 살랑살랑 불었다.|1
+돋아나다|v|싹이나 잎이 솟아 나오다|돌 틈에서 새싹이 돋아났다.|1|돋아
+싱그럽다|a|싱싱하고 맑은 향기나 기운이 있다|비 갠 풀밭에서 싱그러운 냄새가 났다.|1
+꽃망울|n|아직 피지 않은 어린 꽃봉오리|목련에 꽃망울이 맺혔다.|1
+이슬|n|풀잎이나 물체에 맺힌 작은 물방울|아침 풀잎마다 이슬이 맺혔다.|1
+아지랑이|n|봄날 땅 위로 아른아른 피어오르는 공기|들판에 아지랑이가 어른거렸다.|2
+시나브로|d|모르는 사이에 조금씩 조금씩|벚꽃이 시나브로 지고 있었다.|3
+새록새록|d|새로운 일이나 감정이 잇따라 생겨나는 모양|옛 기억이 새록새록 떠올랐다.|3`},
+ {id:"field",name:"움직임",words:`
+헐레벌떡|s|숨을 가쁘고 거칠게 몰아쉬는 모양|종이 울리자 헐레벌떡 뛰어왔다.|1
+아슬아슬|s|일이 잘못될까 봐 조마조마한 모양|공이 골대를 아슬아슬하게 비껴갔다.|1
+내달리다|v|힘차게 달려 나가다|출발 신호와 함께 내달렸다.|1|내달
+함성|n|여럿이 함께 지르는 큰 소리|역전 골이 터지자 함성이 쏟아졌다.|1
+우렁차다|a|소리가 매우 크고 힘차다|응원단의 구호가 우렁차게 울렸다.|1|우렁
+뙤약볕|n|여름날 강하게 내리쬐는 뜨거운 볕|뙤약볕 아래에서 끝까지 뛰었다.|2
+안간힘|n|어떤 일을 이루려고 몹시 애쓰는 힘|넘어지지 않으려고 안간힘을 썼다.|3
+곤두박질|n|몸이 뒤집혀 갑자기 아래로 떨어지는 일|자전거와 함께 곤두박질을 쳤다.|3`}
+];
+const POS={n:{name:"명사",c:"#86d6f7"},v:{name:"동사",c:"#ff7d9c"},a:{name:"형용사",c:"#ffd23f"},d:{name:"부사",c:"#7fe0bb"},s:{name:"흉내말",c:"#c3a6ff"}};
+const hash=s=>{let h=7;for(const ch of s)h=(h*31+ch.codePointAt(0))>>>0;return h};
+const BUILTIN=ZONES.flatMap(z=>z.words.trim().split("\n").map(l=>{
+  const [word,pos,mean,ex,r,forms]=l.split("|");
+  return {id:"w"+hash(word),word,pos,mean,ex,rare:+r,zone:z.id,forms:forms?forms.split(","):null};
+}));
+const MISSIONS=[
+ {id:"m1",title:"쉬는 시간 10분",prompt:"오늘 쉬는 시간에 본 장면을 글로 찍어 보세요. 소리와 움직임이 들리듯 써 봅니다.",need:3,chars:100,posNeed:"s"},
+ {id:"m2",title:"감정 숨기기",prompt:"‘슬프다, 기쁘다, 화나다’를 쓰지 않고 그 마음을 한 장면으로 보여 주세요.",need:3,chars:120,ban:["슬프","슬퍼","슬픈","기쁘","기뻐","기쁜","화나","화가"]},
+ {id:"m3",title:"낯선 만남",prompt:"서로 다른 갈래의 낱말들을 한 이야기 안에서 만나게 해 주세요.",need:3,chars:150,zones:3},
+ {id:"m4",title:"1년 뒤의 나에게",prompt:"1년 뒤의 나에게 짧은 편지를 씁니다. 평소에 잘 쓰지 않던 낱말을 꼭 넣어 보세요.",need:2,chars:120,rareNeed:2}
+];
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const zoneOf=id=>ZONES.find(z=>z.id===id);
+const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- 상태 ---------- */
+const parseWords=text=>text.split("\n").map(l=>l.split("|").map(x=>x.trim())).filter(p=>p[0]&&p[1]).slice(0,60).map(([word,mean,ex])=>({
+  id:"c"+hash(word),word,mean,ex:ex||"",pos:/다$/.test(word)?"v":"n",rare:2,custom:true,zone:ZONES[hash(word)%ZONES.length].id}));
+
+const KEY="naltmal-v1";
+let S={name:"",caught:{},bloom:{},taken:{},works:[],draft:"",mission:"m1"};
+try{const raw=localStorage.getItem(KEY);if(raw)S={...S,...JSON.parse(raw)}}catch(e){}
+let CFG={mission:null,words:[]};
+let AREA=null,PRACTICE_OK=true;
+const toB64=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+const fromB64=t=>JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,"+").replace(/_/g,"/")))));
+try{
+  const p=new URLSearchParams(location.search).get("c");
+  if(p){const o=fromB64(p);AREA=o.a?{lat:o.a[0],lng:o.a[1],r:o.a[2]}:null;PRACTICE_OK=!!o.p;CFG={mission:o.m||null,words:parseWords(o.w||"")};}
+  else{const raw=localStorage.getItem(KEY+"-cfg");if(raw)CFG={...CFG,...JSON.parse(raw)}}
+}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const allWords=()=>BUILTIN.concat(CFG.words||[]);
+const wordById=id=>allWords().find(w=>w.id===id);
+function stems(w){
+  if(w.forms)return w.forms;
+  if(w.pos!=="v"&&w.pos!=="a")return [w.word];
+  let s=w.word.replace(/다$/,"").replace(/하$/,"");
+  const last=s.charCodeAt(s.length-1)-0xAC00;
+  if(s.length>2&&last>=0&&last%28===17)s=s.slice(0,-1);
+  return [s];
+}
+const hasWord=(text,w)=>stems(w).some(s=>text.includes(s));
+const usedIn=text=>Object.keys(S.caught).map(wordById).filter(Boolean).filter(w=>hasWord(text,w));
+
+/* ---------- 낱말이 그리기 ---------- */
+function beast(c,x,y,r,w,t=0,o={}){
+  const h=hash(w.word)%628/100,bob=reduced?0:Math.sin(t*2.4+h)*r*.07;y+=bob;
+  const N=w.pos==="s"?18:60,f=(a,i)=>w.pos==="n"?1+.08*Math.sin(3*a+h):w.pos==="v"?.84+.22*Math.cos(6*a+h):w.pos==="a"?.74+.34*Math.abs(Math.cos(2.5*a+h)):w.pos==="d"?.82+.42*Math.pow(Math.max(0,Math.cos(a+Math.PI/2)),6):(i%2?1.12:.72);
+  c.lineWidth=Math.max(2,r*.09);c.strokeStyle="#20246b";c.lineJoin="round";c.lineCap="round";
+  if(w.rare===3&&!o.plain){c.save();c.setLineDash([r*.18,r*.18]);c.lineDashOffset=-t*r*.5;c.strokeStyle="#ffb300";c.lineWidth=Math.max(2.5,r*.1);c.beginPath();c.arc(x,y,r*1.4,0,7);c.stroke();c.restore()}
+  c.beginPath();
+  for(let i=0;i<N;i++){const a=i/N*Math.PI*2,R=r*f(a,i);c[i?"lineTo":"moveTo"](x+Math.cos(a)*R,y+Math.sin(a)*R)}
+  c.closePath();c.fillStyle=o.hidden?"#20246b":POS[w.pos].c;c.fill();c.stroke();
+  if(o.hidden){c.fillStyle="#ffd23f";c.font=`${r*1}px "Black Han Sans",sans-serif`;c.textAlign="center";c.textBaseline="middle";c.fillText("?",x,y+r*.05);return}
+  const ew=r*(.26+(h%1)*.08),blink=!reduced&&(t+h)%4<.12;
+  for(const s of[-1,1]){
+    c.fillStyle="#fff";c.beginPath();c.arc(x+s*ew,y-r*.1,r*.19,0,7);c.fill();c.stroke();
+    c.fillStyle="#20246b";c.beginPath();c.arc(x+s*ew,y-r*.1,blink?r*.03:r*.09,0,7);c.fill();
+  }
+  c.beginPath();c.arc(x,y+r*.2,r*.17,.15*Math.PI,.85*Math.PI);c.stroke();
+  if(o.bloom){c.fillStyle="#ff7d9c";c.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,R=i%2?r*.13:r*.3;c[i?"lineTo":"moveTo"](x+Math.cos(a)*R,y-r*1.08+Math.sin(a)*R)}c.closePath();c.fill();c.stroke()}
+}
+const portraits={};
+function portrait(w,hide){
+  const k=w.id+(S.bloom[w.id]?"b":"")+(hide?"h":"");
+  if(portraits[k])return portraits[k];
+  const cv=document.createElement("canvas");cv.width=cv.height=144;
+  beast(cv.getContext("2d"),72,80,44,w,0,{plain:true,hidden:hide,bloom:!!S.bloom[w.id]});
+  return portraits[k]=cv.toDataURL();
+}
+
+/* ---------- 실제 지도와 위치 ---------- */
+const CELL_LAT=.00025,CATCH_M=25,SEE_M=130,SLOT_MS=15*60*1000;
+let lmap=null,you=null,acc=null,bugs=null,areaC=null,pos=null,mob=[],watchId=null,practice=false,lastDraw=null;
+const dist=(a,b)=>{const R=6371000,r=Math.PI/180,x=(b.lng-a.lng)*r*Math.cos((a.lat+b.lat)*r/2),y=(b.lat-a.lat)*r;return Math.hypot(x,y)*R};
+const inArea=p=>!AREA||dist(p,AREA)<=AREA.r;
+function mapInit(){
+  if(lmap||!window.L)return;
+  const c=AREA||{lat:37.5665,lng:126.978};
+  lmap=L.map("map",{zoomControl:false,attributionControl:true}).setView([c.lat,c.lng],18);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(lmap);
+  bugs=L.layerGroup().addTo(lmap);
+  if(AREA)areaC=L.circle([AREA.lat,AREA.lng],{radius:AREA.r,color:"#20246b",weight:3,dashArray:"8 8",fill:false}).addTo(lmap);
+  lmap.on("click",e=>{if(practice)setPos({lat:e.latlng.lat,lng:e.latlng.lng,acc:5})});
+}
+function spawns(p){
+  /* 같은 칸, 같은 15분에는 모두에게 같은 자리에 낱말이 나타난다. 서버 없이 시드로만 계산한다. */
+  const slot=Math.floor(Date.now()/SLOT_MS),cl=CELL_LAT/Math.cos(Math.floor(p.lat)*Math.PI/180),ci=Math.floor(p.lat/CELL_LAT),cj=Math.floor(p.lng/cl),n=Math.ceil(SEE_M/28),out=[],all=allWords();
+  for(let i=ci-n;i<=ci+n;i++)for(let j=cj-n;j<=cj+n;j++){
+    const key=`${slot}:${i}:${j}`,h=hash(key+"a");
+    if(h%100>=22||S.taken[key])continue;
+    const lat=(i+.15+(hash(key+"b")%70)/100)*CELL_LAT,lng=(j+.15+(hash(key+"c")%70)/100)*cl,q={lat,lng};
+    if(dist(p,q)>SEE_M||!inArea(q))continue;
+    const roll=hash(key+"d")%100,tier=roll<12?3:roll<38?2:1;
+    const pool=all.filter(w=>w.rare===tier),fresh=pool.filter(w=>!S.caught[w.id]),list=fresh.length?fresh:pool.length?pool:all;
+    const w=list[hash(key+"e")%list.length];out.push({key,lat,lng,w});
+  }
+  return out;
+}
+function drawBugs(){
+  if(!pos||!bugs)return;
+  mob=spawns(pos);bugs.clearLayers();
+  for(const m of mob){
+    const d=dist(pos,m),near=d<=reach(),icon=L.divIcon({className:"",iconSize:[52,52],html:`<img class="bug ${near?"":"far"}" alt="" src="${portrait(m.w,!S.caught[m.w.id])}">${m.w.rare===3?'<i class="ringfx"></i>':""}`});
+    L.marker([m.lat,m.lng],{icon}).on("click",()=>tapBug(m)).addTo(bugs);
+  }
+  hintNow();lastDraw=pos;
+}
+const reach=()=>Math.max(CATCH_M,Math.min(pos&&pos.acc||0,40));
+function hintNow(){
+  const h=$("#hint");
+  if(!pos)return;
+  if(!inArea(pos)){h.textContent="활동 구역 밖이에요. 점선 안으로 돌아와 주세요.";return}
+  if(pos.acc>60){h.textContent="위치가 흔들려요. 건물 밖 하늘이 보이는 곳으로 가 주세요.";return}
+  const n=mob.filter(m=>dist(pos,m)<=reach()).length,near=mob.reduce((a,m)=>Math.min(a,dist(pos,m)),1e9);
+  h.textContent=n?`잡을 수 있는 낱말이 ${n}마리 있어요. 눌러 보세요!`:mob.length?`가장 가까운 낱말이까지 ${Math.round(near)}m`:"이 근처에는 없어요. 조금 더 걸어 보세요.";
+}
+function tapBug(m){
+  if(!inArea(pos))return toast("활동 구역 안에서만 잡을 수 있어요");
+  const d=dist(pos,m);
+  if(d>reach())return toast(`${Math.round(d-reach())}m 더 다가가세요`);
+  startCatch(m);
+}
+function setPos(p){
+  const first=!pos;pos=p;mapInit();if(!lmap)return;
+  const ll=[p.lat,p.lng];
+  if(!you){you=L.circleMarker(ll,{radius:10,color:"#20246b",weight:3,fillColor:"#ff7d9c",fillOpacity:1}).addTo(lmap);acc=L.circle(ll,{radius:p.acc,color:"#ff7d9c",weight:1,fillOpacity:.12,interactive:false}).addTo(lmap)}
+  you.setLatLng(ll);acc.setLatLng(ll);acc.setRadius(p.acc);
+  if(first)lmap.setView(ll,18);else lmap.panTo(ll,{animate:!reduced});
+  if(!lastDraw||dist(lastDraw,p)>6)drawBugs();else hintNow();
+}
+function startGeo(){
+  ov.hidden=true;ov.innerHTML="";mapInit();
+  if(!navigator.geolocation)return geoFail("이 브라우저는 위치를 지원하지 않아요.");
+  if(!window.isSecureContext)return geoFail("위치는 https 주소에서만 켜집니다.");
+  watchId=navigator.geolocation.watchPosition(g=>{if(!practice)setPos({lat:g.coords.latitude,lng:g.coords.longitude,acc:g.coords.accuracy})},e=>{if(!pos)geoFail(e.code===1?"위치 권한이 꺼져 있어요. 브라우저 설정에서 이 사이트의 위치를 허용한 뒤 다시 열어 주세요.":"위치를 찾지 못했어요. 건물 밖으로 나가 다시 열어 주세요.")},{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
+}
+function geoFail(msg){
+  ov.className="over light";ov.hidden=false;
+  ov.innerHTML=`<div class="panel"><h2>위치를 켤 수 없어요</h2><p>${esc(msg)}</p>${PRACTICE_OK?`<div class="row"><button class="btn" id="prac" type="button">연습 모드로 하기</button></div><p class="lead">연습 모드는 지도를 눌러 이동합니다.</p>`:`<p class="lead">선생님께 알려 주세요.</p>`}</div>`;
+  const b=$("#prac");if(b)b.onclick=startPractice;
+}
+function startPractice(){ov.hidden=true;ov.innerHTML="";practice=true;mapInit();const c=AREA||{lat:37.5665,lng:126.978};setPos({lat:c.lat,lng:c.lng,acc:5});toast("연습 모드: 지도를 눌러 이동하세요")}
+function intro(){
+  ov.className="over";ov.hidden=false;
+  ov.innerHTML=`<div class="panel"><h2>낱말 채집을 시작해요</h2><p>실제로 걸어가 낱말이 ${CATCH_M}m 안에 들어오면 잡을 수 있어요.</p><p class="safe">걸을 때는 앞을 보고, 멈춰 서서 화면을 보세요. 찻길과 정해진 구역 밖으로는 나가지 않습니다.</p><p class="lead">위치는 이 기기 안에서만 계산하고 어디에도 저장하지 않아요.</p><div class="row"><button class="btn" id="go" type="button">위치 켜고 시작</button></div></div>`;
+  $("#go").onclick=startGeo;
+}
+setInterval(()=>{if(pos&&tab==="map"&&ov.hidden)drawBugs()},30000);
+
+/* ---------- 채집 ---------- */
+const ov=$("#overlay");
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function startCatch(m){
+  const w=m.w,others=shuffle(allWords().filter(x=>x.id!==w.id&&x.pos===w.pos)).concat(shuffle(allWords().filter(x=>x.pos!==w.pos))).slice(0,2),opts=shuffle([w,...others]);
+  ov.className="over";ov.hidden=false;
+  ov.innerHTML=`<canvas id="ring" width="640" height="640"></canvas><div id="catchTop">${esc(w.word)}</div><div id="catchSub">${POS[w.pos].name} · ${"★".repeat(w.rare)} · 이 낱말의 뜻은 무엇일까요?</div><div class="opts" id="catchOpts">${opts.map(o=>`<button type="button" data-id="${o.id}">${esc(o.mean)}</button>`).join("")}</div>`;
+  const rc=$("#ring").getContext("2d");let phase="quiz",tries=1,ringR=1.7,dir=-1,alive=true,last=performance.now();
+  const speed=(w.rare===3?1.5:w.rare===2?1.15:.85)*(reduced?.55:1);
+  const draw=now=>{
+    if(!alive)return;
+    const dt=Math.min(.05,(now-last)/1000);last=now;
+    rc.clearRect(0,0,640,640);
+    beast(rc,320,330,130,w,now/1000,{plain:true,bloom:!!S.bloom[w.id]});
+    if(phase==="throw"){
+      ringR+=dir*speed*dt;if(ringR<.75){ringR=.75;dir=1}if(ringR>1.75){ringR=1.75;dir=-1}
+      rc.lineWidth=26;rc.strokeStyle="rgba(127,224,187,.45)";rc.beginPath();rc.arc(320,330,130*1.2,0,7);rc.stroke();
+      rc.lineWidth=9;rc.strokeStyle=Math.abs(ringR-1.2)<.17?"#7fe0bb":"#ffd23f";rc.beginPath();rc.arc(320,330,130*ringR,0,7);rc.stroke();
+    }
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
+  const close=()=>{alive=false;ov.hidden=true;ov.innerHTML="";S.taken[m.key]=1;save();drawBugs();tally()};
+  $("#catchOpts").addEventListener("click",e=>{
+    const b=e.target.closest("button");if(!b||phase!=="quiz")return;
+    const right=b.dataset.id===w.id;
+    b.classList.add(right?"right":"wrong");
+    if(!right)$(`#catchOpts [data-id="${w.id}"]`).classList.add("right");
+    tries=right?3:1;phase="wait";
+    $("#catchSub").textContent=right?"맞았어요! 그물 3개를 받았어요.":"다시 익혀 두세요. 그물 1개로 도전합니다.";
+    setTimeout(()=>{
+      if(!alive)return;
+      phase="throw";
+      $("#catchOpts").innerHTML=`<button class="btn" id="throw" type="button" style="text-align:center;font-size:20px;box-shadow:3px 3px 0 var(--sun)">그물 던지기</button>`;
+      $("#catchSub").textContent=`노란 고리가 초록 띠에 겹칠 때 던지세요. 남은 그물 ${tries}개`;
+      $("#throw").addEventListener("click",()=>{
+        if(phase!=="throw")return;
+        if(Math.abs(ringR-1.2)<.17){
+          phase="done";S.caught[w.id]={t:Date.now()};save();
+          $("#catchTop").textContent="채집 성공!";
+          $("#catchSub").textContent=`${w.word}: ${w.mean}`;
+          $("#catchOpts").innerHTML=`<div style="font-family:var(--pen)">${esc(w.ex)}</div><button class="btn" id="done" type="button" style="text-align:center;box-shadow:3px 3px 0 var(--sun)">채집통에 넣기</button>`;
+          $("#done").addEventListener("click",close);$("#done").focus();
+        }else{
+          tries--;
+          if(tries>0)$("#catchSub").textContent=`빗나갔어요. 남은 그물 ${tries}개`;
+          else{
+            phase="done";$("#catchTop").textContent="도망쳤어요";
+            $("#catchSub").textContent=`${w.word}이(가) 멀리 달아났어요. 다른 낱말이를 찾아보세요.`;
+            $("#catchOpts").innerHTML=`<button class="btn" id="done" type="button" style="text-align:center;box-shadow:3px 3px 0 var(--sun)">지도로 돌아가기</button>`;
+            $("#done").addEventListener("click",close);
+          }
+        }
+      });
+    },right?650:1500);
+  });
+}
+
+/* ---------- 도감 ---------- */
+let dexFilter="all";
+function renderDex(){
+  const all=allWords(),n=all.filter(w=>S.caught[w.id]).length,bl=Object.keys(S.bloom).length;
+  const list=all.filter(w=>dexFilter==="all"||w.pos===dexFilter);
+  $("#view-dex").innerHTML=`<div class="scroll"><section><h2>채집통</h2><p class="lead">${n===0?"아직 빈 채집통이에요. 지도에서 첫 낱말을 잡아 보세요.":`${all.length}개 중 ${n}개를 잡았고, ${bl}개를 내 글에 써서 꽃 피웠어요.`} 잡은 낱말을 글에 쓰면 머리에 꽃이 핍니다.</p>
+  <div class="row" id="dexChips"><button class="chip" type="button" data-f="all" aria-pressed="${dexFilter==="all"}">전체</button>${Object.entries(POS).map(([k,v])=>`<button class="chip" type="button" data-f="${k}" aria-pressed="${dexFilter===k}">${v.name}</button>`).join("")}</div></section>
+  <div class="dex">${list.map(w=>S.caught[w.id]?`<button type="button" class="spec hit" data-id="${w.id}">${S.bloom[w.id]?'<span class="stamp">글에 씀</span>':""}<img alt="" src="${portrait(w)}"><b>${esc(w.word)}</b><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span><span class="stars">${"★".repeat(w.rare)}</span></button>`:`<div class="spec miss"><b>?</b><small>${esc(zoneOf(w.zone).name)}</small><span class="stars">${"★".repeat(w.rare)}</span></div>`).join("")}</div></div>`;
+  $("#dexChips").onclick=e=>{const f=e.target.dataset.f;if(f){dexFilter=f;renderDex()}};
+  $("#view-dex .dex").onclick=e=>{const b=e.target.closest(".hit");if(b)showWord(wordById(b.dataset.id))};
+}
+function showWord(w){
+  ov.className="over light";ov.hidden=false;
+  ov.innerHTML=`<div class="panel"><div class="row"><img alt="" src="${portrait(w)}" width="72" height="72"><div><h2>${esc(w.word)}</h2><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span> <span class="stars">${"★".repeat(w.rare)}</span> <small>${esc(zoneOf(w.zone).name)} 갈래</small></div></div><p>${esc(w.mean)}</p>${w.ex?`<p style="font-family:var(--pen)">예문: ${esc(w.ex)}</p>`:""}${S.bloom[w.id]?`<p class="note" style="font-family:var(--pen)">내 문장: ${esc(S.bloom[w.id])}</p>`:`<p class="lead">아직 글에 쓰지 않았어요.</p>`}<div class="row"><button class="btn" id="wClose" type="button">닫기</button></div></div>`;
+  $("#wClose").onclick=()=>{ov.hidden=true;ov.innerHTML=""};$("#wClose").focus();
+}
+
+/* ---------- 글쓰기 ---------- */
+const missions=()=>CFG.mission?[{id:"t",need:3,chars:100,...CFG.mission},...MISSIONS]:MISSIONS;
+const curMission=()=>missions().find(m=>m.id===S.mission)||missions()[0];
+function checks(m,text){
+  const used=usedIn(text),out=[{ok:used.length>=m.need,label:`채집한 낱말 ${m.need}개 이상 쓰기 (${used.length}개)`},{ok:text.trim().length>=m.chars,label:`${m.chars}자 이상 쓰기 (${text.trim().length}자)`}];
+  if(m.posNeed)out.push({ok:used.some(w=>w.pos===m.posNeed),label:`${POS[m.posNeed].name} 1개 넣기`});
+  if(m.zones){const z=new Set(used.map(w=>w.zone)).size;out.push({ok:z>=m.zones,label:`서로 다른 갈래 ${m.zones}가지 이상 (${z}가지)`})}
+  if(m.rareNeed)out.push({ok:used.some(w=>w.rare>=m.rareNeed),label:`★${m.rareNeed} 이상 낱말 1개 넣기`});
+  if(m.ban){const hit=m.ban.some(b=>text.includes(b));out.push({ok:!hit,bad:hit,label:hit?"금지된 감정 낱말을 다른 장면으로 바꿔 보세요":"감정 낱말 직접 쓰지 않기"})}
+  return out;
+}
+function renderChecks(){
+  const m=curMission(),text=$("#draft").value,cs=checks(m,text),done=cs.every(c=>c.ok);
+  $("#checks").innerHTML=cs.map(c=>`<li class="${c.bad?"bad":c.ok?"ok":""}">${esc(c.label)}</li>`).join("");
+  document.querySelectorAll("#bank .chip").forEach(b=>{const w=wordById(b.dataset.id);b.classList.toggle("used",!!w&&hasWord(text,w))});
+  $("#post").disabled=!done||!$("#penName").value.trim();
+  $("#postWhy").textContent=!$("#penName").value.trim()?"필명을 적어 주세요.":done?"":"위 조건을 채우면 글을 저장할 수 있어요.";
+}
+function renderWrite(){
+  const caught=allWords().filter(w=>S.caught[w.id]),m=curMission();
+  if(!caught.length){$("#view-write").innerHTML=`<div class="scroll"><section><h2>글쓰기</h2><p class="lead">글에 쓸 낱말이 아직 없어요. 지도에서 낱말을 먼저 채집해 오세요.</p><div class="row"><a class="btn" href="#map" style="text-decoration:none;color:inherit">지도로 가기</a></div></section></div>`;return}
+  const active=document.activeElement&&document.activeElement.id==="draft";
+  if(active)return;
+  $("#view-write").innerHTML=`<div class="scroll">
+  <section><label for="missionPick">오늘의 글감</label><select id="missionPick">${missions().map(x=>`<option value="${x.id}" ${x.id===m.id?"selected":""}>${esc(x.title)}</option>`).join("")}</select>
+  <div class="brief"><h3>${esc(m.title)}</h3><p>${esc(m.prompt)}</p></div></section>
+  <section><h2>내 낱말</h2><p class="lead">누르면 글에 들어가고, 글에 쓴 낱말은 초록색으로 바뀝니다.</p><div class="row" id="bank">${caught.map(w=>`<button class="chip" type="button" data-id="${w.id}" title="${esc(w.mean)}">${esc(w.word)}</button>`).join("")}</div></section>
+  <section><label for="draft">내 글</label><textarea id="draft" rows="7"></textarea><ul class="checks" id="checks"></ul></section>
+  <section><label for="penName">필명</label><input id="penName" type="text" maxlength="20" autocomplete="off"><div class="row"><button class="btn" id="post" type="button">글 저장하기</button><button class="btn ghost" id="copy" type="button">글 복사</button></div><p class="lead" id="postWhy"></p></section></div>`;
+  const d=$("#draft");d.value=S.draft||"";$("#penName").value=S.name||"";
+  $("#missionPick").onchange=e=>{S.mission=e.target.value;save();renderWrite()};
+  d.oninput=()=>{S.draft=d.value;save();renderChecks()};
+  $("#penName").oninput=e=>{S.name=e.target.value;save();renderChecks()};
+  $("#bank").onclick=e=>{const b=e.target.closest(".chip");if(!b)return;const w=wordById(b.dataset.id),s=d.selectionStart??d.value.length;d.value=d.value.slice(0,s)+w.word+" "+d.value.slice(d.selectionEnd??s);d.focus();d.selectionStart=d.selectionEnd=s+w.word.length+1;S.draft=d.value;save();renderChecks()};
+  $("#copy").onclick=async()=>{const t=`[${curMission().title}] ${S.name||"익명"}\n\n${d.value}`;try{await navigator.clipboard.writeText(t);toast("글을 복사했어요")}catch(e){d.select();toast("글을 선택했어요. 직접 복사해 주세요")}};
+  $("#post").onclick=submit;
+  renderChecks();
+}
+function submit(){
+  const text=$("#draft").value.trim(),m=curMission(),used=usedIn(text);
+  if(!checks(m,text).every(c=>c.ok))return;
+  const parts=text.split(/(?<=[.!?…。\n])\s*/);
+  used.forEach(w=>{S.bloom[w.id]=(parts.find(p=>hasWord(p,w))||text).slice(0,140)});
+  S.works.push({id:"p"+Date.now().toString(36),t:Date.now(),name:S.name.trim(),mission:m.title,text,words:used.map(w=>w.word)});
+  S.draft="";save();
+  toast("저장했어요. 쓴 낱말에 꽃이 피었어요!");
+  location.hash="wall";
+}
+
+/* ---------- 우리 반 벽 ---------- */
+function workHTML(w){
+  let html=esc(w.text);
+  (w.words||[]).slice().sort((a,b)=>b.length-a.length).forEach(word=>{
+    const def=allWords().find(x=>x.word===word);
+    (def?stems(def):[word]).forEach(s=>{html=html.split(esc(s)).join(`<mark>${esc(s)}</mark>`)});
+  });
+  html=html.replace(/<mark>(<mark>)+/g,"<mark>").replace(/(<\/mark>)+/g,"</mark>");
+  return `<article class="work"><h3 style="font-size:18px">${esc(w.mission||"글")}</h3><p>${html}</p><footer><span>${esc(w.name||"익명 채집가")} · 낱말 ${(w.words||[]).length}개</span><button class="chip" type="button" data-copy="${esc(w.id)}">복사</button></footer></article>`;
+}
+function renderWall(){
+  const all=allWords(),got=all.filter(w=>S.caught[w.id]).length,pct=Math.round(got/all.length*100),list=S.works.slice().reverse();
+  $("#view-wall").innerHTML=`<div class="scroll"><section><h2>내 글</h2><p class="lead">${all.length}개 중 ${got}개를 찾았어요.</p><div class="meter" role="img" aria-label="채집 진행률 ${pct}%"><i style="width:${pct}%"></i></div><p class="note">글은 이 기기에 저장됩니다. ‘복사’를 눌러 학급 게시판에 붙여 주세요.</p></section>
+  ${list.length?list.map(w=>workHTML(w)).join(""):`<p class="note">아직 쓴 글이 없어요. 글쓰기에서 첫 글을 써 보세요.</p>`}</div>`;
+  $("#view-wall").onclick=async e=>{const b=e.target.closest("[data-copy]");if(!b)return;const w=S.works.find(x=>x.id===b.dataset.copy),t=`[${w.mission}] ${w.name}\n\n${w.text}`;try{await navigator.clipboard.writeText(t);toast("글을 복사했어요")}catch(err){toast("복사하지 못했어요. 글을 길게 눌러 복사해 주세요")}};
+}
+
+/* ---------- 교사 ---------- */
+let tCenter=null;
+function renderTeacher(){
+  const c=tCenter||AREA;
+  $("#view-teacher").innerHTML=`<div class="scroll">
+  <section><h2>수업 진행 (40분)</h2><ol class="steps"><li><b>열기 5분</b> 교실에서 안전 약속과 활동 구역을 안내합니다.</li><li><b>채집 15분</b> 운동장에서 걸으며 낱말을 모읍니다.</li><li><b>글쓰기 15분</b> 교실로 돌아와 글감 조건을 채워 씁니다.</li><li><b>나눔 5분</b> 글을 학급 게시판에 올려 낱말을 잘 살린 문장을 함께 읽습니다.</li></ol></section>
+  <section><h2>활동 구역</h2><p class="lead">운동장 한가운데에서 ‘현재 위치로 정하기’를 누르세요. 학생은 이 원 안에서만 낱말을 만나고 잡을 수 있습니다.</p><div class="row"><button class="btn ghost" id="tHere" type="button">현재 위치로 정하기</button><span id="tSpot">${c?`중심 ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`:"아직 정하지 않았어요"}</span></div><label for="tRad">반경</label><select id="tRad">${[60,100,150,250].map(r=>`<option ${(AREA?AREA.r:100)===r?"selected":""} value="${r}">${r}m</option>`).join("")}</select><label class="inline"><input id="tPrac" type="checkbox" ${PRACTICE_OK&&AREA?"checked":""}>위치를 못 켠 학생에게 연습 모드 허용 (비 오는 날 실내 수업용)</label></section>
+  <section><h2>오늘의 글감</h2><label for="tTitle">제목</label><input id="tTitle" type="text" maxlength="30" value="${esc(CFG.mission?.title||"")}"><label for="tPrompt">안내 문장</label><textarea id="tPrompt" rows="3">${esc(CFG.mission?.prompt||"")}</textarea></section>
+  <section><h2>우리 반 낱말 추가</h2><p class="lead">한 줄에 하나씩 <b>낱말 | 뜻 | 예문</b>으로 적으세요. ★★ 낱말로 나타납니다.</p><label for="tWords">낱말 목록</label><textarea id="tWords" rows="5" placeholder="관용구 | 두 낱말 이상이 굳어져 특별한 뜻을 나타내는 말 | 관용구를 넣어 문장을 지었다.">${esc((CFG.words||[]).map(w=>[w.word,w.mean,w.ex].join(" | ")).join("\n"))}</textarea></section>
+  <div class="row"><button class="btn" id="tMake" type="button">학생용 링크 만들기</button></div>
+  <section id="tOut" hidden><h2>학생용 링크</h2><div id="qr"></div><input id="tLink" type="text" readonly aria-label="학생용 링크"><div class="row"><button class="btn ghost" id="tCopy" type="button">링크 복사</button></div></section></div>`;
+  $("#tHere").onclick=()=>{
+    const use=(lat,lng)=>{tCenter={lat,lng};$("#tSpot").textContent=`중심 ${lat.toFixed(5)}, ${lng.toFixed(5)}`};
+    if(pos&&!practice)return use(pos.lat,pos.lng);
+    if(!navigator.geolocation)return toast("이 브라우저는 위치를 지원하지 않아요");
+    $("#tSpot").textContent="위치를 찾는 중이에요";
+    navigator.geolocation.getCurrentPosition(g=>use(g.coords.latitude,g.coords.longitude),()=>{$("#tSpot").textContent="위치를 찾지 못했어요. 위치 권한을 허용하고 건물 밖에서 다시 눌러 주세요."},{enableHighAccuracy:true,timeout:20000});
+  };
+  $("#tMake").onclick=()=>{
+    const cc=tCenter||AREA;if(!cc)return toast("먼저 활동 구역을 정해 주세요");
+    const t=$("#tTitle").value.trim(),p=$("#tPrompt").value.trim(),o={a:[+cc.lat.toFixed(6),+cc.lng.toFixed(6),+$("#tRad").value],p:$("#tPrac").checked?1:0};
+    if(t&&p)o.m={title:t,prompt:p};
+    const w=$("#tWords").value.trim();if(w)o.w=w;
+    const url=location.origin+location.pathname+"?c="+toB64(o);
+    $("#tOut").hidden=false;$("#tLink").value=url;
+    try{const q=qrcode(0,"M");q.addData(url);q.make();$("#qr").innerHTML=q.createSvgTag({scalable:true,margin:2})}catch(e){$("#qr").textContent="낱말이 많아 QR을 만들 수 없어요. 링크를 복사해 전달해 주세요."}
+    $("#tOut").scrollIntoView({behavior:reduced?"auto":"smooth"});
+  };
+  $("#tCopy").onclick=async()=>{const i=$("#tLink");try{await navigator.clipboard.writeText(i.value);toast("링크를 복사했어요")}catch(e){i.select();toast("링크를 선택했어요. 직접 복사해 주세요")}};
+}
+
+/* ---------- 틀 ---------- */
+let tab="map",teacherSeen=location.hash==="#teacher";
+function buildTabs(){
+  const list=[["map","지도"],["dex","채집통"],["write","글쓰기"],["wall","내 글"]];
+  if(location.hash==="#teacher"||teacherSeen||!AREA)list.push(["teacher","교사"]);
+  const nav=$("#tabs");nav.style.setProperty("--tabs",list.length);
+  nav.innerHTML=list.map(([k,v])=>`<button type="button" data-t="${k}" ${tab===k?'aria-current="page"':""}>${v}</button>`).join("");
+}
+$("#tabs").onclick=e=>{const k=e.target.dataset.t;if(k)location.hash=k};
+function tally(){const n=allWords().filter(w=>S.caught[w.id]).length;$("#tally").innerHTML=`채집 <b>${n}</b> / ${allWords().length}`}
+function go(){
+  const h=location.hash.slice(1),views=["map","dex","write","wall","teacher"];
+  tab=views.includes(h)?h:"map";
+  views.forEach(v=>{$("#view-"+v).hidden=v!==tab});
+  buildTabs();
+  if(tab==="map"&&!pos&&watchId===null&&!practice&&ov.hidden)intro();
+  if(tab==="map"&&lmap)setTimeout(()=>lmap.invalidateSize(),0);
+  if(tab==="dex")renderDex();if(tab==="write")renderWrite();if(tab==="wall")renderWall();if(tab==="teacher")renderTeacher();
+}
+addEventListener("hashchange",go);
+let toastT=0;
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3200)}
+const boot=()=>{tally();go()};
+requestAnimationFrame(boot);
+</script>
+
+</body></html>
