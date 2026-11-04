@@ -2,7 +2,6 @@
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>낱말 채집단</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
 <style>
@@ -93,22 +92,23 @@ section>h2{font-size:21px}
 .opts button{background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:6px;padding:10px 12px;text-align:left;box-shadow:3px 3px 0 var(--sun)}
 .opts button.right{background:var(--mint)}
 .opts button.wrong{background:var(--pink)}
-#toast{position:fixed;z-index:30;left:50%;bottom:calc(68px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--sun);color:var(--ink);border:2px solid var(--ink);padding:7px 14px;max-width:calc(100% - 32px);width:max-content;font-size:15px;text-align:center}
+#toast{position:fixed;z-index:30;left:50%;top:calc(52px + env(safe-area-inset-top,0px));transform:translateX(-50%);background:var(--sun);color:var(--ink);border:2px solid var(--ink);padding:7px 14px;max-width:calc(100% - 32px);width:max-content;font-size:15px;text-align:center}
 @media (prefers-reduced-motion:no-preference){.spec.hit{transition:transform .12s}.spec.hit:hover{transform:translateY(-3px)}}
 [hidden]{display:none!important}
 body{margin:0}
-#map{z-index:0;background:var(--field)}
-#hint{z-index:500}
-.leaflet-div-icon{background:none;border:0}
-.bug{width:52px;height:52px;display:block}
-.bug.far{opacity:.82}
-.ringfx{position:absolute;inset:-6px;border:3px dashed #ffb300;border-radius:50%}
-.safe{font-weight:700}
+#view-map{background:#14173f}
+#cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#ar{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#hint{z-index:5;bottom:96px;background:rgba(32,36,107,.86)}
+#radar{position:absolute;left:12px;bottom:12px;width:72px;height:72px;z-index:5;pointer-events:none}
+#count{position:absolute;right:12px;bottom:12px;z-index:5;background:rgba(32,36,107,.86);color:var(--paper);padding:5px 10px;border-radius:6px;font-size:14px}
+.over.cam{background:rgba(20,23,63,.42);position:fixed}
+.over.cam #catchTop{text-shadow:0 2px 0 var(--ink)}
+.over.cam #catchSub{background:rgba(32,36,107,.86);padding:3px 10px;border-radius:6px}
 #qr svg{width:220px;height:220px;display:block}
 input[type=checkbox]{width:20px;height:20px}
 .inline{display:flex;gap:8px;align-items:center;color:var(--ink)}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 </head><body>
 <div id="app">
@@ -118,8 +118,11 @@ input[type=checkbox]{width:20px;height:20px}
   </header>
   <main>
     <div class="view" id="view-map">
-      <div id="map" aria-label="내 주변 실제 지도"></div>
-      <div id="hint">위치를 찾는 중이에요</div>
+      <video id="cam" playsinline muted autoplay></video>
+      <canvas id="ar" aria-label="카메라 화면. 낱말이를 누르면 채집합니다."></canvas>
+      <canvas id="radar" width="144" height="144" aria-hidden="true"></canvas>
+      <div id="count"></div>
+      <div id="hint">휴대폰을 천천히 돌려 보세요</div>
     </div>
     <div class="view" id="view-dex" hidden></div>
     <div class="view" id="view-write" hidden></div>
@@ -230,15 +233,15 @@ const parseWords=text=>text.split("\n").map(l=>l.split("|").map(x=>x.trim())).fi
   id:"c"+hash(word),word,mean,ex:ex||"",pos:/다$/.test(word)?"v":"n",rare:2,custom:true,zone:ZONES[hash(word)%ZONES.length].id}));
 
 const KEY="naltmal-v1";
-let S={name:"",caught:{},bloom:{},taken:{},works:[],draft:"",mission:"m1"};
+let S={name:"",caught:{},bloom:{},works:[],draft:"",mission:"m1"};
 try{const raw=localStorage.getItem(KEY);if(raw)S={...S,...JSON.parse(raw)}}catch(e){}
 let CFG={mission:null,words:[]};
-let AREA=null,PRACTICE_OK=true;
 const toB64=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
 const fromB64=t=>JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,"+").replace(/_/g,"/")))));
+let fromLink=false;
 try{
   const p=new URLSearchParams(location.search).get("c");
-  if(p){const o=fromB64(p);AREA=o.a?{lat:o.a[0],lng:o.a[1],r:o.a[2]}:null;PRACTICE_OK=!!o.p;CFG={mission:o.m||null,words:parseWords(o.w||"")};}
+  if(p){const o=fromB64(p);fromLink=true;CFG={mission:o.m||null,words:parseWords(o.w||"")};}
   else{const raw=localStorage.getItem(KEY+"-cfg");if(raw)CFG={...CFG,...JSON.parse(raw)}}
 }catch(e){}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -282,91 +285,88 @@ function portrait(w,hide){
   return portraits[k]=cv.toDataURL();
 }
 
-/* ---------- 실제 지도와 위치 ---------- */
-const CELL_LAT=.00025,CATCH_M=25,SEE_M=130,SLOT_MS=15*60*1000;
-let lmap=null,you=null,acc=null,bugs=null,areaC=null,pos=null,mob=[],watchId=null,practice=false,lastDraw=null;
-const dist=(a,b)=>{const R=6371000,r=Math.PI/180,x=(b.lng-a.lng)*r*Math.cos((a.lat+b.lat)*r/2),y=(b.lat-a.lat)*r;return Math.hypot(x,y)*R};
-const inArea=p=>!AREA||dist(p,AREA)<=AREA.r;
-function mapInit(){
-  if(lmap||!window.L)return;
-  const c=AREA||{lat:37.5665,lng:126.978};
-  lmap=L.map("map",{zoomControl:false,attributionControl:true}).setView([c.lat,c.lng],18);
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(lmap);
-  bugs=L.layerGroup().addTo(lmap);
-  if(AREA)areaC=L.circle([AREA.lat,AREA.lng],{radius:AREA.r,color:"#20246b",weight:3,dashArray:"8 8",fill:false}).addTo(lmap);
-  lmap.on("click",e=>{if(practice)setPos({lat:e.latlng.lat,lng:e.latlng.lng,acc:5})});
+/* ---------- 카메라 AR ---------- */
+const ar=$("#ar"),actx=ar.getContext("2d"),rad=$("#radar").getContext("2d"),cam=$("#cam");
+const DEG=Math.PI/180,VIEW_V=62,MOBS=6;
+let aw=0,ah=0,mob=[],look={yaw:0,pitch:0},aim={yaw:0,pitch:0},sensor=false,started=false,stream=null,camOK=false,running=false,drag=null,caughtNow=false;
+const wrap=d=>((d+540)%360)-180;
+function aimFrom(e){
+  if(e.alpha==null||e.beta==null)return;
+  /* 기기 뒷면(카메라)이 향하는 방향을 회전 행렬에서 구한다. W3C 기준 z-x-y */
+  const a=e.alpha*DEG,b=e.beta*DEG,g=(e.gamma||0)*DEG,cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
+  const fx=-(cG*sA*sB+cA*sG),fy=-(sA*sG-cA*cG*sB),fz=-(cB*cG);
+  sensor=true;aim.yaw=Math.atan2(fx,fy)/DEG;aim.pitch=Math.asin(Math.max(-1,Math.min(1,fz)))/DEG;
 }
-function spawns(p){
-  /* 같은 칸, 같은 15분에는 모두에게 같은 자리에 낱말이 나타난다. 서버 없이 시드로만 계산한다. */
-  const slot=Math.floor(Date.now()/SLOT_MS),cl=CELL_LAT/Math.cos(Math.floor(p.lat)*Math.PI/180),ci=Math.floor(p.lat/CELL_LAT),cj=Math.floor(p.lng/cl),n=Math.ceil(SEE_M/28),out=[],all=allWords();
-  for(let i=ci-n;i<=ci+n;i++)for(let j=cj-n;j<=cj+n;j++){
-    const key=`${slot}:${i}:${j}`,h=hash(key+"a");
-    if(h%100>=22||S.taken[key])continue;
-    const lat=(i+.15+(hash(key+"b")%70)/100)*CELL_LAT,lng=(j+.15+(hash(key+"c")%70)/100)*cl,q={lat,lng};
-    if(dist(p,q)>SEE_M||!inArea(q))continue;
-    const roll=hash(key+"d")%100,tier=roll<12?3:roll<38?2:1;
-    const pool=all.filter(w=>w.rare===tier),fresh=pool.filter(w=>!S.caught[w.id]),list=fresh.length?fresh:pool.length?pool:all;
-    const w=list[hash(key+"e")%list.length];out.push({key,lat,lng,w});
-  }
-  return out;
+function spawnOne(){
+  const all=allWords(),roll=Math.random(),tier=roll<.15?3:roll<.42?2:1,present=new Set(mob.map(m=>m.w.id));
+  const open=all.filter(w=>!present.has(w.id)),fresh=open.filter(w=>!S.caught[w.id]),t=fresh.filter(w=>w.rare===tier),list=t.length?t:fresh.length?fresh:open;
+  if(!list.length)return;
+  let yaw=0;for(let i=0;i<30;i++){yaw=Math.random()*360-180;if(mob.every(m=>Math.abs(wrap(m.yaw-yaw))>32))break}
+  mob.push({w:list[Math.floor(Math.random()*list.length)],yaw,pitch:-12+Math.random()*34,size:.85+Math.random()*.35,seed:Math.random()*9});
 }
-function drawBugs(){
-  if(!pos||!bugs)return;
-  mob=spawns(pos);bugs.clearLayers();
+const fill=()=>{while(mob.length<Math.min(MOBS,allWords().length))spawnOne()};
+function sizeAR(){const b=ar.getBoundingClientRect();if(!b.width)return;aw=b.width;ah=b.height;const d=devicePixelRatio||1;ar.width=aw*d;ar.height=ah*d}
+function place(m){const k=ah/VIEW_V;return{x:aw/2+wrap(m.yaw-look.yaw)*k,y:ah/2-(m.pitch-look.pitch)*k,r:Math.min(aw,ah)*.11*m.size}}
+function arStep(ts){
+  if(!running)return;
+  const t=ts/1000,k=.22;
+  look.yaw=wrap(look.yaw+wrap(aim.yaw-look.yaw)*k);look.pitch+=(aim.pitch-look.pitch)*k;
+  const d=devicePixelRatio||1;actx.setTransform(d,0,0,d,0,0);actx.clearRect(0,0,aw,ah);
+  let vis=0;
   for(const m of mob){
-    const d=dist(pos,m),near=d<=reach(),icon=L.divIcon({className:"",iconSize:[52,52],html:`<img class="bug ${near?"":"far"}" alt="" src="${portrait(m.w,!S.caught[m.w.id])}">${m.w.rare===3?'<i class="ringfx"></i>':""}`});
-    L.marker([m.lat,m.lng],{icon}).on("click",()=>tapBug(m)).addTo(bugs);
+    const p=place(m);
+    if(p.x<-80||p.x>aw+80||p.y<-80||p.y>ah+80)continue;
+    if(p.x>0&&p.x<aw&&p.y>0&&p.y<ah)vis++;
+    actx.fillStyle="rgba(0,0,0,.28)";actx.beginPath();actx.ellipse(p.x,p.y+p.r*1.35,p.r*.8,p.r*.2,0,0,7);actx.fill();
+    beast(actx,p.x,p.y,p.r,m.w,t+m.seed,{hidden:!S.caught[m.w.id],bloom:!!S.bloom[m.w.id]});
   }
-  hintNow();lastDraw=pos;
+  actx.strokeStyle="rgba(255,255,255,.75)";actx.lineWidth=2;actx.beginPath();actx.arc(aw/2,ah/2,14,0,7);actx.stroke();
+  rad.clearRect(0,0,144,144);rad.fillStyle="rgba(32,36,107,.82)";rad.beginPath();rad.arc(72,72,70,0,7);rad.fill();
+  rad.fillStyle="rgba(255,255,255,.2)";rad.beginPath();rad.moveTo(72,72);rad.arc(72,72,70,-Math.PI/2-.42,-Math.PI/2+.42);rad.fill();
+  let near=null;
+  for(const m of mob){const a=wrap(m.yaw-look.yaw);if(!near||Math.abs(a)<Math.abs(near))near=a;rad.fillStyle=m.w.rare===3?"#ffd23f":"#ff7d9c";rad.beginPath();rad.arc(72+Math.sin(a*DEG)*50,72-Math.cos(a*DEG)*50,9,0,7);rad.fill()}
+  rad.fillStyle="#fff";rad.beginPath();rad.arc(72,72,6,0,7);rad.fill();
+  const h=vis?"낱말이를 눌러 잡으세요":near==null?"":`${near>0?"오른쪽":"왼쪽"}으로 ${Math.round(Math.abs(near))}° 돌아보세요`;
+  if($("#hint").textContent!==h)$("#hint").textContent=h;
+  requestAnimationFrame(arStep);
 }
-const reach=()=>Math.max(CATCH_M,Math.min(pos&&pos.acc||0,40));
-function hintNow(){
-  const h=$("#hint");
-  if(!pos)return;
-  if(!inArea(pos)){h.textContent="활동 구역 밖이에요. 점선 안으로 돌아와 주세요.";return}
-  if(pos.acc>60){h.textContent="위치가 흔들려요. 건물 밖 하늘이 보이는 곳으로 가 주세요.";return}
-  const n=mob.filter(m=>dist(pos,m)<=reach()).length,near=mob.reduce((a,m)=>Math.min(a,dist(pos,m)),1e9);
-  h.textContent=n?`잡을 수 있는 낱말이 ${n}마리 있어요. 눌러 보세요!`:mob.length?`가장 가까운 낱말이까지 ${Math.round(near)}m`:"이 근처에는 없어요. 조금 더 걸어 보세요.";
+function runAR(on){if(on===running)return;running=on;if(on){sizeAR();requestAnimationFrame(arStep)}}
+ar.addEventListener("pointerdown",e=>{
+  const b=ar.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top;
+  let best=null,bd=1e9;for(const m of mob){const p=place(m),d=Math.hypot(p.x-x,p.y-y);if(d<Math.max(p.r*1.3,36)&&d<bd){bd=d;best=m}}
+  if(best)return startCatch(best);
+  if(!sensor)drag={x:e.clientX,y:e.clientY,yaw:aim.yaw,pitch:aim.pitch};
+});
+addEventListener("pointermove",e=>{if(!drag)return;const k=VIEW_V/ah;aim.yaw=wrap(drag.yaw-(e.clientX-drag.x)*k);aim.pitch=Math.max(-40,Math.min(50,drag.pitch+(e.clientY-drag.y)*k))});
+addEventListener("pointerup",()=>{drag=null});
+addEventListener("resize",sizeAR);
+async function camOn(){
+  if(stream)return true;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return false;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});cam.srcObject=stream;await cam.play().catch(()=>{});return true}catch(e){return false}
 }
-function tapBug(m){
-  if(!inArea(pos))return toast("활동 구역 안에서만 잡을 수 있어요");
-  const d=dist(pos,m);
-  if(d>reach())return toast(`${Math.round(d-reach())}m 더 다가가세요`);
-  startCatch(m);
+function camOff(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;cam.srcObject=null}}
+async function startAR(){
+  /* iPhone은 버튼을 누른 그 순간에 센서 허용을 물어야 한다. 카메라보다 먼저 호출한다 */
+  let motion="granted";
+  if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==="function"){try{motion=await DeviceOrientationEvent.requestPermission()}catch(e){motion="denied"}}
+  addEventListener("deviceorientation",aimFrom);
+  camOK=await camOn();started=true;ov.hidden=true;ov.innerHTML="";fill();sizeAR();go();
+  if(!camOK)toast("카메라를 켜지 못했어요. 브라우저에서 카메라를 허용하면 교실이 보입니다");
+  setTimeout(()=>{if(!sensor)toast("방향 센서를 쓸 수 없어요. 화면을 끌어서 둘러보세요")},1800);
 }
-function setPos(p){
-  const first=!pos;pos=p;mapInit();if(!lmap)return;
-  const ll=[p.lat,p.lng];
-  if(!you){you=L.circleMarker(ll,{radius:10,color:"#20246b",weight:3,fillColor:"#ff7d9c",fillOpacity:1}).addTo(lmap);acc=L.circle(ll,{radius:p.acc,color:"#ff7d9c",weight:1,fillOpacity:.12,interactive:false}).addTo(lmap)}
-  you.setLatLng(ll);acc.setLatLng(ll);acc.setRadius(p.acc);
-  if(first)lmap.setView(ll,18);else lmap.panTo(ll,{animate:!reduced});
-  if(!lastDraw||dist(lastDraw,p)>6)drawBugs();else hintNow();
-}
-function startGeo(){
-  ov.hidden=true;ov.innerHTML="";mapInit();
-  if(!navigator.geolocation)return geoFail("이 브라우저는 위치를 지원하지 않아요.");
-  if(!window.isSecureContext)return geoFail("위치는 https 주소에서만 켜집니다.");
-  watchId=navigator.geolocation.watchPosition(g=>{if(!practice)setPos({lat:g.coords.latitude,lng:g.coords.longitude,acc:g.coords.accuracy})},e=>{if(!pos)geoFail(e.code===1?"위치 권한이 꺼져 있어요. 브라우저 설정에서 이 사이트의 위치를 허용한 뒤 다시 열어 주세요.":"위치를 찾지 못했어요. 건물 밖으로 나가 다시 열어 주세요.")},{enableHighAccuracy:true,maximumAge:2000,timeout:20000});
-}
-function geoFail(msg){
-  ov.className="over light";ov.hidden=false;
-  ov.innerHTML=`<div class="panel"><h2>위치를 켤 수 없어요</h2><p>${esc(msg)}</p>${PRACTICE_OK?`<div class="row"><button class="btn" id="prac" type="button">연습 모드로 하기</button></div><p class="lead">연습 모드는 지도를 눌러 이동합니다.</p>`:`<p class="lead">선생님께 알려 주세요.</p>`}</div>`;
-  const b=$("#prac");if(b)b.onclick=startPractice;
-}
-function startPractice(){ov.hidden=true;ov.innerHTML="";practice=true;mapInit();const c=AREA||{lat:37.5665,lng:126.978};setPos({lat:c.lat,lng:c.lng,acc:5});toast("연습 모드: 지도를 눌러 이동하세요")}
 function intro(){
   ov.className="over";ov.hidden=false;
-  ov.innerHTML=`<div class="panel"><h2>낱말 채집을 시작해요</h2><p>실제로 걸어가 낱말이 ${CATCH_M}m 안에 들어오면 잡을 수 있어요.</p><p class="safe">걸을 때는 앞을 보고, 멈춰 서서 화면을 보세요. 찻길과 정해진 구역 밖으로는 나가지 않습니다.</p><p class="lead">위치는 이 기기 안에서만 계산하고 어디에도 저장하지 않아요.</p><div class="row"><button class="btn" id="go" type="button">위치 켜고 시작</button></div></div>`;
-  $("#go").onclick=startGeo;
+  ov.innerHTML=`<div class="panel"><h2>교실에서 낱말을 찾아요</h2><p>카메라로 교실을 비추고 휴대폰을 위아래, 좌우로 돌려 보세요. 낱말이가 숨어 있어요.</p><p class="lead">자리에서 할 수 있어요. 카메라 영상은 화면에만 보이고 저장되거나 전송되지 않습니다.</p><div class="row"><button class="btn" id="go" type="button">카메라 켜고 시작</button></div></div>`;
+  $("#go").onclick=startAR;
 }
-setInterval(()=>{if(pos&&tab==="map"&&ov.hidden)drawBugs()},30000);
 
 /* ---------- 채집 ---------- */
 const ov=$("#overlay");
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function startCatch(m){
   const w=m.w,others=shuffle(allWords().filter(x=>x.id!==w.id&&x.pos===w.pos)).concat(shuffle(allWords().filter(x=>x.pos!==w.pos))).slice(0,2),opts=shuffle([w,...others]);
-  ov.className="over";ov.hidden=false;
+  runAR(false);ov.className="over cam";ov.hidden=false;
   ov.innerHTML=`<canvas id="ring" width="640" height="640"></canvas><div id="catchTop">${esc(w.word)}</div><div id="catchSub">${POS[w.pos].name} · ${"★".repeat(w.rare)} · 이 낱말의 뜻은 무엇일까요?</div><div class="opts" id="catchOpts">${opts.map(o=>`<button type="button" data-id="${o.id}">${esc(o.mean)}</button>`).join("")}</div>`;
   const rc=$("#ring").getContext("2d");let phase="quiz",tries=1,ringR=1.7,dir=-1,alive=true,last=performance.now();
   const speed=(w.rare===3?1.5:w.rare===2?1.15:.85)*(reduced?.55:1);
@@ -383,7 +383,7 @@ function startCatch(m){
     requestAnimationFrame(draw);
   };
   requestAnimationFrame(draw);
-  const close=()=>{alive=false;ov.hidden=true;ov.innerHTML="";S.taken[m.key]=1;save();drawBugs();tally()};
+  const close=()=>{alive=false;ov.hidden=true;ov.innerHTML="";mob=mob.filter(x=>x!==m);fill();tally();if(tab==="map")runAR(true)};
   $("#catchOpts").addEventListener("click",e=>{
     const b=e.target.closest("button");if(!b||phase!=="quiz")return;
     const right=b.dataset.id===w.id;
@@ -410,7 +410,7 @@ function startCatch(m){
           else{
             phase="done";$("#catchTop").textContent="도망쳤어요";
             $("#catchSub").textContent=`${w.word}이(가) 멀리 달아났어요. 다른 낱말이를 찾아보세요.`;
-            $("#catchOpts").innerHTML=`<button class="btn" id="done" type="button" style="text-align:center;box-shadow:3px 3px 0 var(--sun)">지도로 돌아가기</button>`;
+            $("#catchOpts").innerHTML=`<button class="btn" id="done" type="button" style="text-align:center;box-shadow:3px 3px 0 var(--sun)">채집으로 돌아가기</button>`;
             $("#done").addEventListener("click",close);
           }
         }
@@ -424,7 +424,7 @@ let dexFilter="all";
 function renderDex(){
   const all=allWords(),n=all.filter(w=>S.caught[w.id]).length,bl=Object.keys(S.bloom).length;
   const list=all.filter(w=>dexFilter==="all"||w.pos===dexFilter);
-  $("#view-dex").innerHTML=`<div class="scroll"><section><h2>채집통</h2><p class="lead">${n===0?"아직 빈 채집통이에요. 지도에서 첫 낱말을 잡아 보세요.":`${all.length}개 중 ${n}개를 잡았고, ${bl}개를 내 글에 써서 꽃 피웠어요.`} 잡은 낱말을 글에 쓰면 머리에 꽃이 핍니다.</p>
+  $("#view-dex").innerHTML=`<div class="scroll"><section><h2>채집통</h2><p class="lead">${n===0?"아직 빈 채집통이에요. 교실에서 첫 낱말을 잡아 보세요.":`${all.length}개 중 ${n}개를 잡았고, ${bl}개를 내 글에 써서 꽃 피웠어요.`} 잡은 낱말을 글에 쓰면 머리에 꽃이 핍니다.</p>
   <div class="row" id="dexChips"><button class="chip" type="button" data-f="all" aria-pressed="${dexFilter==="all"}">전체</button>${Object.entries(POS).map(([k,v])=>`<button class="chip" type="button" data-f="${k}" aria-pressed="${dexFilter===k}">${v.name}</button>`).join("")}</div></section>
   <div class="dex">${list.map(w=>S.caught[w.id]?`<button type="button" class="spec hit" data-id="${w.id}">${S.bloom[w.id]?'<span class="stamp">글에 씀</span>':""}<img alt="" src="${portrait(w)}"><b>${esc(w.word)}</b><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span><span class="stars">${"★".repeat(w.rare)}</span></button>`:`<div class="spec miss"><b>?</b><small>${esc(zoneOf(w.zone).name)}</small><span class="stars">${"★".repeat(w.rare)}</span></div>`).join("")}</div></div>`;
   $("#dexChips").onclick=e=>{const f=e.target.dataset.f;if(f){dexFilter=f;renderDex()}};
@@ -456,7 +456,7 @@ function renderChecks(){
 }
 function renderWrite(){
   const caught=allWords().filter(w=>S.caught[w.id]),m=curMission();
-  if(!caught.length){$("#view-write").innerHTML=`<div class="scroll"><section><h2>글쓰기</h2><p class="lead">글에 쓸 낱말이 아직 없어요. 지도에서 낱말을 먼저 채집해 오세요.</p><div class="row"><a class="btn" href="#map" style="text-decoration:none;color:inherit">지도로 가기</a></div></section></div>`;return}
+  if(!caught.length){$("#view-write").innerHTML=`<div class="scroll"><section><h2>글쓰기</h2><p class="lead">글에 쓸 낱말이 아직 없어요. 채집 화면에서 낱말을 먼저 잡아 오세요.</p><div class="row"><a class="btn" href="#map" style="text-decoration:none;color:inherit">채집하러 가기</a></div></section></div>`;return}
   const active=document.activeElement&&document.activeElement.id==="draft";
   if(active)return;
   $("#view-write").innerHTML=`<div class="scroll">
@@ -503,31 +503,20 @@ function renderWall(){
 }
 
 /* ---------- 교사 ---------- */
-let tCenter=null;
 function renderTeacher(){
-  const c=tCenter||AREA;
   $("#view-teacher").innerHTML=`<div class="scroll">
-  <section><h2>수업 진행 (40분)</h2><ol class="steps"><li><b>열기 5분</b> 교실에서 안전 약속과 활동 구역을 안내합니다.</li><li><b>채집 15분</b> 운동장에서 걸으며 낱말을 모읍니다.</li><li><b>글쓰기 15분</b> 교실로 돌아와 글감 조건을 채워 씁니다.</li><li><b>나눔 5분</b> 글을 학급 게시판에 올려 낱말을 잘 살린 문장을 함께 읽습니다.</li></ol></section>
-  <section><h2>활동 구역</h2><p class="lead">운동장 한가운데에서 ‘현재 위치로 정하기’를 누르세요. 학생은 이 원 안에서만 낱말을 만나고 잡을 수 있습니다.</p><div class="row"><button class="btn ghost" id="tHere" type="button">현재 위치로 정하기</button><span id="tSpot">${c?`중심 ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`:"아직 정하지 않았어요"}</span></div><label for="tRad">반경</label><select id="tRad">${[60,100,150,250].map(r=>`<option ${(AREA?AREA.r:100)===r?"selected":""} value="${r}">${r}m</option>`).join("")}</select><label class="inline"><input id="tPrac" type="checkbox" ${PRACTICE_OK&&AREA?"checked":""}>위치를 못 켠 학생에게 연습 모드 허용 (비 오는 날 실내 수업용)</label></section>
+  <section><h2>수업 진행 (40분)</h2><ol class="steps"><li><b>열기 5분</b> QR로 접속하고 카메라와 동작 센서를 허용합니다.</li><li><b>채집 15분</b> 교실을 비추며 낱말을 모읍니다.</li><li><b>글쓰기 15분</b> 글감 조건을 채워 글을 씁니다.</li><li><b>나눔 5분</b> 글을 학급 게시판에 올려 낱말을 잘 살린 문장을 함께 읽습니다.</li></ol></section>
   <section><h2>오늘의 글감</h2><label for="tTitle">제목</label><input id="tTitle" type="text" maxlength="30" value="${esc(CFG.mission?.title||"")}"><label for="tPrompt">안내 문장</label><textarea id="tPrompt" rows="3">${esc(CFG.mission?.prompt||"")}</textarea></section>
   <section><h2>우리 반 낱말 추가</h2><p class="lead">한 줄에 하나씩 <b>낱말 | 뜻 | 예문</b>으로 적으세요. ★★ 낱말로 나타납니다.</p><label for="tWords">낱말 목록</label><textarea id="tWords" rows="5" placeholder="관용구 | 두 낱말 이상이 굳어져 특별한 뜻을 나타내는 말 | 관용구를 넣어 문장을 지었다.">${esc((CFG.words||[]).map(w=>[w.word,w.mean,w.ex].join(" | ")).join("\n"))}</textarea></section>
-  <div class="row"><button class="btn" id="tMake" type="button">학생용 링크 만들기</button></div>
-  <section id="tOut" hidden><h2>학생용 링크</h2><div id="qr"></div><input id="tLink" type="text" readonly aria-label="학생용 링크"><div class="row"><button class="btn ghost" id="tCopy" type="button">링크 복사</button></div></section></div>`;
-  $("#tHere").onclick=()=>{
-    const use=(lat,lng)=>{tCenter={lat,lng};$("#tSpot").textContent=`중심 ${lat.toFixed(5)}, ${lng.toFixed(5)}`};
-    if(pos&&!practice)return use(pos.lat,pos.lng);
-    if(!navigator.geolocation)return toast("이 브라우저는 위치를 지원하지 않아요");
-    $("#tSpot").textContent="위치를 찾는 중이에요";
-    navigator.geolocation.getCurrentPosition(g=>use(g.coords.latitude,g.coords.longitude),()=>{$("#tSpot").textContent="위치를 찾지 못했어요. 위치 권한을 허용하고 건물 밖에서 다시 눌러 주세요."},{enableHighAccuracy:true,timeout:20000});
-  };
+  <div class="row"><button class="btn" id="tMake" type="button">학생용 QR 만들기</button></div>
+  <section id="tOut" hidden><h2>학생용 QR</h2><div id="qr"></div><input id="tLink" type="text" readonly aria-label="학생용 링크"><div class="row"><button class="btn ghost" id="tCopy" type="button">링크 복사</button></div></section></div>`;
   $("#tMake").onclick=()=>{
-    const cc=tCenter||AREA;if(!cc)return toast("먼저 활동 구역을 정해 주세요");
-    const t=$("#tTitle").value.trim(),p=$("#tPrompt").value.trim(),o={a:[+cc.lat.toFixed(6),+cc.lng.toFixed(6),+$("#tRad").value],p:$("#tPrac").checked?1:0};
+    const t=$("#tTitle").value.trim(),p=$("#tPrompt").value.trim(),o={};
     if(t&&p)o.m={title:t,prompt:p};
     const w=$("#tWords").value.trim();if(w)o.w=w;
     const url=location.origin+location.pathname+"?c="+toB64(o);
     $("#tOut").hidden=false;$("#tLink").value=url;
-    try{const q=qrcode(0,"M");q.addData(url);q.make();$("#qr").innerHTML=q.createSvgTag({scalable:true,margin:2})}catch(e){$("#qr").textContent="낱말이 많아 QR을 만들 수 없어요. 링크를 복사해 전달해 주세요."}
+    try{const q=qrcode(0,"M");q.addData(url);q.make();$("#qr").innerHTML=q.createSvgTag({scalable:true,margin:2})}catch(e){$("#qr").textContent="QR을 만들 수 없어요. 낱말을 줄이거나 링크를 복사해 전달해 주세요."}
     $("#tOut").scrollIntoView({behavior:reduced?"auto":"smooth"});
   };
   $("#tCopy").onclick=async()=>{const i=$("#tLink");try{await navigator.clipboard.writeText(i.value);toast("링크를 복사했어요")}catch(e){i.select();toast("링크를 선택했어요. 직접 복사해 주세요")}};
@@ -536,20 +525,20 @@ function renderTeacher(){
 /* ---------- 틀 ---------- */
 let tab="map",teacherSeen=location.hash==="#teacher";
 function buildTabs(){
-  const list=[["map","지도"],["dex","채집통"],["write","글쓰기"],["wall","내 글"]];
-  if(location.hash==="#teacher"||teacherSeen||!AREA)list.push(["teacher","교사"]);
+  const list=[["map","채집"],["dex","채집통"],["write","글쓰기"],["wall","내 글"]];
+  if(location.hash==="#teacher"||teacherSeen||!fromLink)list.push(["teacher","교사"]);
   const nav=$("#tabs");nav.style.setProperty("--tabs",list.length);
   nav.innerHTML=list.map(([k,v])=>`<button type="button" data-t="${k}" ${tab===k?'aria-current="page"':""}>${v}</button>`).join("");
 }
 $("#tabs").onclick=e=>{const k=e.target.dataset.t;if(k)location.hash=k};
-function tally(){const n=allWords().filter(w=>S.caught[w.id]).length;$("#tally").innerHTML=`채집 <b>${n}</b> / ${allWords().length}`}
+function tally(){const c=$("#count");if(c)c.textContent=`이번에 ${mob.length}마리`;const n=allWords().filter(w=>S.caught[w.id]).length;$("#tally").innerHTML=`채집 <b>${n}</b> / ${allWords().length}`}
 function go(){
   const h=location.hash.slice(1),views=["map","dex","write","wall","teacher"];
   tab=views.includes(h)?h:"map";
   views.forEach(v=>{$("#view-"+v).hidden=v!==tab});
   buildTabs();
-  if(tab==="map"&&!pos&&watchId===null&&!practice&&ov.hidden)intro();
-  if(tab==="map"&&lmap)setTimeout(()=>lmap.invalidateSize(),0);
+  if(tab==="map"){if(!started){if(ov.hidden)intro()}else{camOn().then(ok=>{camOK=ok});runAR(ov.hidden)}}
+  else{runAR(false);camOff()}
   if(tab==="dex")renderDex();if(tab==="write")renderWrite();if(tab==="wall")renderWall();if(tab==="teacher")renderTeacher();
 }
 addEventListener("hashchange",go);
