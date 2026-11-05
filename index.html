@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>낱말 채집단</title>
+<title>달밤 채집단</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
 <style>
@@ -46,6 +46,8 @@ nav button[aria-current="page"]{background:var(--ink);color:var(--sun)}
 .chip{background:var(--paper);border:2px solid var(--ink);border-radius:999px;padding:3px 12px;font-size:15px}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
 .chip.used{background:var(--mint);font-weight:700}
+.chip{text-align:left;max-width:100%}
+textarea.draft{font:17px/2em var(--pen);min-height:calc(2em*5);background-image:repeating-linear-gradient(transparent,transparent calc(2em - 1px),var(--line) calc(2em - 1px),var(--line) 2em);background-attachment:local;padding-block:0}
 .tag{display:inline-block;font-size:12.5px;letter-spacing:.02em;padding:0 7px;border:1.5px solid var(--ink);border-radius:4px;background:var(--pos,var(--paper));white-space:nowrap}
 .dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px}
 .spec{background:var(--paper);border:2px solid var(--ink);padding:10px;display:grid;justify-items:center;gap:3px;text-align:center;position:relative}
@@ -113,7 +115,7 @@ input[type=checkbox]{width:20px;height:20px}
 </head><body>
 <div id="app">
   <header>
-    <h1>낱말 채집단</h1>
+    <h1>달밤 채집단</h1>
     <div id="tally" aria-live="polite"></div>
   </header>
   <main>
@@ -137,92 +139,101 @@ input[type=checkbox]{width:20px;height:20px}
 <script>
 "use strict";
 /* ---------- 낱말 자료: 낱말|품사|뜻|예문|희귀도|활용형(선택) ---------- */
-const ZONES=[
- {id:"sky",name:"하늘",words:`
-뭉게뭉게|s|구름이나 연기가 둥글게 피어오르는 모양|굴뚝 위로 흰 연기가 뭉게뭉게 피어올랐다.|1
-노을|n|해가 뜨거나 질 때 하늘이 붉게 물드는 현상|창문 가득 붉은 노을이 번졌다.|1
-아찔하다|a|갑자기 정신이 어지러울 만큼 놀랍거나 위태롭다|난간 아래를 보니 아찔했다.|1
-드넓다|a|활짝 트여 아주 넓다|눈앞에 드넓은 바다가 펼쳐졌다.|1
-펼쳐지다|v|눈앞에 넓게 나타나다|고개를 넘자 마을이 펼쳐졌다.|1|펼쳐
-어스름|n|해 질 무렵이나 새벽의 조금 어둑한 상태|저녁 어스름이 골목에 내려앉았다.|2
-윤슬|n|햇빛이나 달빛에 비쳐 반짝이는 잔물결|강 위로 윤슬이 눈부시게 흔들렸다.|3
-가없다|a|끝이 없다|어머니의 가없는 사랑이 떠올랐다.|3`},
- {id:"music",name:"소리",words:`
-흥얼거리다|v|흥에 겨워 입속으로 계속 노래를 부르다|형은 설거지하며 노래를 흥얼거렸다.|1|흥얼거
-쩌렁쩌렁|s|목소리가 높고 크게 울리는 모양|선생님 목소리가 복도에 쩌렁쩌렁 울렸다.|1
-메아리|n|산이나 골짜기에서 소리가 되울려 오는 것|산 정상에서 외치자 메아리가 돌아왔다.|1
-떨림|n|몸이나 소리가 잘게 흔들리는 일|마이크를 든 손에 떨림이 느껴졌다.|1
-둥둥|s|북을 잇달아 두드리는 소리|멀리서 북소리가 둥둥 들려왔다.|1
-선율|n|소리의 높낮이와 길이가 어우러져 이어지는 가락|피아노 선율이 교실을 채웠다.|2
-애잔하다|a|몹시 가냘프고 애처롭다|낡은 오르골 소리가 애잔하게 들렸다.|3
-여운|n|소리나 일이 끝난 뒤에도 남아 있는 울림이나 느낌|노래가 끝나도 여운이 오래 남았다.|3`},
- {id:"library",name:"생각",words:`
-소곤소곤|s|남이 듣지 않게 작은 목소리로 이야기하는 소리|뒷자리에서 소곤소곤 말소리가 들렸다.|1
-곰곰이|d|여러모로 깊이 생각하는 모양|그 말을 곰곰이 되짚어 보았다.|1
-책갈피|n|읽던 곳을 표시하려고 책 사이에 끼우는 것|낙엽을 말려 책갈피로 썼다.|1
-뒤적이다|v|물건을 이리저리 들추며 찾다|서랍을 뒤적이다 옛날 사진을 찾았다.|1|뒤적
-고요하다|a|조용하고 잠잠하다|시험이 시작되자 교실이 고요해졌다.|1
-실마리|n|일이나 사건을 풀어 나갈 수 있는 첫머리|낡은 쪽지가 사건의 실마리가 되었다.|2
-사무치다|v|마음속 깊이 스며들어 잊히지 않다|그날의 고마움이 뼈에 사무쳤다.|3|사무치,사무쳐,사무친
-아득하다|a|까마득히 멀거나 오래되어 희미하다|어릴 적 일이 아득하게 느껴졌다.|3`},
- {id:"lab",name:"관찰",words:`
-뿌옇다|a|연기나 안개가 낀 것처럼 선명하지 않고 허옇다|김이 서려 안경이 뿌옇게 흐려졌다.|1|뿌옇,뿌연,뿌얘
-부글부글|s|물이 끓어오르는 소리, 화가 치밀어 오르는 모양|억울해서 속이 부글부글 끓었다.|1
-들여다보다|v|가까이서 자세히 살피다|현미경을 한참 들여다보았다.|1|들여다
-스며들다|v|속으로 배어들다|비가 흙 속으로 천천히 스며들었다.|1|스며
-비커|n|눈금이 있고 주둥이가 달린 원통형 유리 그릇|비커에 담긴 물이 파랗게 변했다.|1
-가설|n|사실인지 확인하기 전에 임시로 세워 보는 설명|실험으로 우리 모둠의 가설을 확인했다.|2
-미묘하다|a|뚜렷하게 말하기 어려울 만큼 섬세하고 야릇하다|두 사람 사이에 미묘한 기운이 흘렀다.|3
-경이롭다|a|놀랍고 신기하다|씨앗이 싹트는 모습은 경이로웠다.|3`},
- {id:"cafe",name:"맛",words:`
-보글보글|s|적은 양의 물이 잇달아 끓는 소리|된장찌개가 보글보글 끓었다.|1
-군침|n|맛있는 것을 보거나 생각할 때 입안에 도는 침|고기 굽는 냄새에 군침이 돌았다.|1
-고소하다|a|볶은 깨나 참기름 같은 맛이나 냄새가 나다|고소한 냄새가 복도까지 퍼졌다.|1
-오물오물|s|음식을 입에 넣고 우물거리며 씹는 모양|동생이 떡을 오물오물 씹었다.|1
-허겁지겁|s|마음이 급해 몹시 서두르는 모양|늦잠을 자서 밥을 허겁지겁 먹었다.|1
-허기|n|몹시 배가 고픈 느낌|체육 시간이 끝나자 허기가 몰려왔다.|2
-포만감|n|배가 넘치도록 가득 찬 느낌|포만감에 눈꺼풀이 무거워졌다.|3
-감칠맛|n|입에 짝짝 당기는 맛|국물에 감칠맛이 돌았다.|3`},
- {id:"hall",name:"마음",words:`
-쭈뼛쭈뼛|s|부끄럽거나 어색해 머뭇거리는 모양|전학생이 문 앞에서 쭈뼛쭈뼛 서 있었다.|1
-머뭇거리다|v|망설이며 자꾸 주저하다|말을 꺼내려다 머뭇거렸다.|1|머뭇거
-서먹하다|a|낯이 설거나 친하지 않아 어색하다|다툰 뒤로 친구와 서먹해졌다.|1
-귓속말|n|남의 귀 가까이에 대고 소곤거리는 말|짝이 내게 귓속말을 건넸다.|1
-눈치|n|남의 마음을 얼른 알아채는 힘|눈치 빠른 동생이 얼른 자리를 비켰다.|1
-뾰로통하다|a|못마땅해 얼굴에 성난 빛이 있다|동생이 입을 내밀고 뾰로통하게 앉아 있었다.|2
-겸연쩍다|a|쑥스럽거나 미안해 어색하다|칭찬을 듣자 겸연쩍어 머리를 긁었다.|3
-속절없이|d|어찌할 도리 없이|시간은 속절없이 흘러갔다.|3`},
- {id:"garden",name:"자연",words:`
-살랑살랑|s|바람이 가볍게 부는 모양|봄바람이 살랑살랑 불었다.|1
-돋아나다|v|싹이나 잎이 솟아 나오다|돌 틈에서 새싹이 돋아났다.|1|돋아
-싱그럽다|a|싱싱하고 맑은 향기나 기운이 있다|비 갠 풀밭에서 싱그러운 냄새가 났다.|1
-꽃망울|n|아직 피지 않은 어린 꽃봉오리|목련에 꽃망울이 맺혔다.|1
-이슬|n|풀잎이나 물체에 맺힌 작은 물방울|아침 풀잎마다 이슬이 맺혔다.|1
-아지랑이|n|봄날 땅 위로 아른아른 피어오르는 공기|들판에 아지랑이가 어른거렸다.|2
-시나브로|d|모르는 사이에 조금씩 조금씩|벚꽃이 시나브로 지고 있었다.|3
-새록새록|d|새로운 일이나 감정이 잇따라 생겨나는 모양|옛 기억이 새록새록 떠올랐다.|3`},
- {id:"field",name:"움직임",words:`
-헐레벌떡|s|숨을 가쁘고 거칠게 몰아쉬는 모양|종이 울리자 헐레벌떡 뛰어왔다.|1
-아슬아슬|s|일이 잘못될까 봐 조마조마한 모양|공이 골대를 아슬아슬하게 비껴갔다.|1
-내달리다|v|힘차게 달려 나가다|출발 신호와 함께 내달렸다.|1|내달
-함성|n|여럿이 함께 지르는 큰 소리|역전 골이 터지자 함성이 쏟아졌다.|1
-우렁차다|a|소리가 매우 크고 힘차다|응원단의 구호가 우렁차게 울렸다.|1|우렁
-뙤약볕|n|여름날 강하게 내리쬐는 뜨거운 볕|뙤약볕 아래에서 끝까지 뛰었다.|2
-안간힘|n|어떤 일을 이루려고 몹시 애쓰는 힘|넘어지지 않으려고 안간힘을 썼다.|3
-곤두박질|n|몸이 뒤집혀 갑자기 아래로 떨어지는 일|자전거와 함께 곤두박질을 쳤다.|3`}
-];
-const POS={n:{name:"명사",c:"#86d6f7"},v:{name:"동사",c:"#ff7d9c"},a:{name:"형용사",c:"#ffd23f"},d:{name:"부사",c:"#7fe0bb"},s:{name:"흉내말",c:"#c3a6ff"}};
+const RAW=`#meet|첫 만남
+n|문안|사대문 안, 곧 서울 도성의 안쪽|“나도 가끔 문안엔 다니지만”처럼 서울 중심을 가리킨다.
+n|대처|사람이 많이 살고 번화한 도회지|‘나’는 대처와 시골의 못난이를 견주어 말한다.
+n|손|다른 곳에서 찾아온 사람, 곧 손님|동리에 처음 들어서는 손에게 시골의 정취를 돋워 준다.
+n|합비|일본식 겉옷. 여기서는 신문 배달부의 옷|황수건은 합비를 입지 않고 신문을 들고 왔다.
+n|업|살아가려고 늘 하는 일, 직업|황수건은 집 찾은 일을 제 업이라고 말한다.
+n|행세|세상에서 사람답게 처신하며 지내는 일|대처에서는 못난이들이 거리에 나와 행세하지 못한다고 한다.
+n|우둔하다|어리석고 둔하다|‘나’는 황수건의 얼굴을 우둔하다고 말한다.|우둔
+n|천진스럽다|꾸밈이나 거짓 없이 순수한 데가 있다|시골 사람의 눈을 천진스럽다고 그린다.|천진
+n|순박하다|꾸밈이 없고 인정이 두텁다|순박한 시골의 정취를 돋워 준다.|순박
+n|히죽거리다|만족스러운 듯 슬쩍슬쩍 웃다|큰 눈과 큰 입이 함께 히죽거린다.|히죽
+a|성북동|‘나’가 이사 온, 서울 문밖의 시골 같은 동네|성북동의 산과 물보다 황수건이 더 시골답게 느껴진 까닭은 무엇일까요?
+a|못난이|‘나’가 황수건을 처음 보고 붙인 말|‘나’가 쓰는 못난이라는 말에는 낮춤과 정이 함께 있을까요?
+s|여기도 정말 시골이로군!|이사 온 ‘나’가 황수건을 만난 날 밤 혼자 한 말|이 말은 불평일까요, 반가움일까요?
+s|우둔하면서도 천진스런 눈|시골에서 만나는 못난이의 눈을 그린 말|어리석음과 순수함은 어떻게 한 눈에 함께 있을 수 있을까요?
+s|이게 제 업인뎁쇼|집을 찾느라 수고했다는 말에 황수건이 한 대답|보조배달인 그가 이 일을 업이라 부르는 모습에서 무엇이 느껴지나요?
+#dream|원배달의 꿈
+n|기상천외|보통 사람은 생각하지 못할 만큼 기발하고 엉뚱함|황수건의 이야깃거리는 기상천외하다.
+n|경난|어려운 일을 겪음|황수건은 경난이 없어 거기까지는 바랄 생각도 못 했다고 한다.
+n|취재|이야깃거리나 글감을 찾아 얻음|그가 얘깃거리를 취재하는 범위는 넓다.
+n|반편|지능이 보통 사람보다 모자란다고 낮잡아 이르는 말. 오늘날 쓰면 안 되는 차별 표현|새 배달부와 집안사람들이 황수건을 이렇게 부른다.
+n|야박하다|인정이 없고 쌀쌀맞다|‘나’는 세상의 야박함을 원망스러워한다.|야박
+a|원배달|월급을 받고 배달복과 방울을 갖춘 정식 배달부|황수건의 평생 소원이 왜 하필 원배달일까요?
+a|보조배달|원배달에게 몇십 부를 떼어 받아 돌리고 삼 원쯤 받는 일|사람들 사이에서 황수건의 자리는 어디쯤일까요?
+a|방울|원배달이 차고 다니는 물건. 황수건이 가장 부러워한 것|방울 소리와 함께 들어온 사람이 황수건이 아니었을 때 ‘나’의 마음은 어땠을까요?
+s|아무것도 아닌 것을 가지고 열심스럽게 이야기하는 것이|‘나’가 황수건과 이야기하기를 좋아한 까닭을 말하는 대목|쓸모없어 보이는 대화가 왜 ‘나’를 가볍게 해 주었을까요?
+s|무어든지 끝을 바라고 붙들어야 한다|원배달이 된다며 신이 난 황수건이 ‘나’에게 일러 준 말|뒷일을 알고 다시 읽으면 이 말이 어떻게 들리나요?
+s|그까짓 반편을 어딜 맡깁니까?|새 배달부가 황수건의 소식을 묻자 웃으며 한 말|이 한마디에 세상이 황수건을 보는 눈이 어떻게 담겨 있나요?
+s|세상의 야박함이 원망스럽기도 하였다|황수건이 밀려난 뒤 ‘나’가 느낀 마음|‘나’는 황수건을 위해 무엇을 할 수 있었을까요?
+#tale|노랑수건 이야기
+n|급사|학교나 관청에서 잔심부름을 하던 사람|황수건은 삼산학교 급사로 있었다.
+n|시학관|일제강점기에 학교 교육을 살피러 다니던 관리|황수건은 시학관을 앉혀 놓고 일본말을 연습했다.
+n|만담|익살스럽고 재미있게 세상을 이야기하는 말재주|그는 손님과 마주 앉아 자기류의 만담에 빠진다.
+n|일화|세상에 널리 알려지지 않은 재미있는 이야기|그에겐 우스운 일화가 한두 가지가 아니다.
+n|삼매|한 가지 일에 온 정신을 쏟는 상태|자기류의 만담 삼매로 빠진다.
+n|그예|마지막에 가서는 기어이|그 버릇을 못 고쳐 그예 쫓겨 나왔다.
+n|고스카이|학교나 관청의 잡일을 하던 사람을 이르던 일본말. 소설은 ‘용인’으로 풀었다|돈만 있으면 고스카이 노릇은 안 한다고 말한다.
+a|노랑수건|황수건의 이름을 두고 아이들이 붙인 별명|놀림받는 별명을 자랑하는 황수건을 어떻게 봐야 할까요?
+a|삼산학교|황수건이 급사로 있다가 쫓겨난 곳이자 다시 돌아가고 싶어 한 곳|그는 왜 쫓겨난 학교 곁을 떠나지 못할까요?
+s|너의 색시 달아난다|황수건이 제일 무서워했다는 말|장난으로 들린 이 말이 뒤에서 어떻게 현실이 되나요?
+s|오십 분 만에 치는 종을 이십 분 만에|색시가 달아날까 걱정한 황수건이 종을 앞당겨 친 일|우스운 일화 속에 어떤 마음이 숨어 있나요?
+#melon|삼 원과 참외
+n|우두|천연두를 막으려고 소에서 얻은 물질을 접종하던 일|황수건은 우두를 넣으면 근력이 준다고 믿는다.
+n|마마|천연두를 이르던 말|요즘 마마가 다닌다고 말한다.
+n|근력|근육의 힘, 기운|새 급사의 근력이 얼마나 센지 궁금해한다.
+n|밑천|장사나 일을 시작하는 데 드는 돈|밑천만 있으면 장사를 하겠다고 말한다.
+n|덩실덩실|신이 나서 팔다리를 흔들며 춤추는 모양|돈 삼 원에 덩실덩실 춤을 추다시피 뛰어나갔다.
+n|금실|부부 사이의 사랑|부부의 금실은 괜찮았다고 한다.
+n|동서|형제의 아내끼리 서로 부르는 말|황수건의 아내는 동서의 구박을 못 견뎠다.
+n|달포|한 달 남짓한 동안|달포 만에 수건이가 찾아왔다.
+a|돈 삼 원|‘나’가 장사 밑천으로 황수건에게 건넨 돈|이 돈은 동정일까요, 우정일까요?
+a|참외|황수건이 장사를 시작하며 ‘나’에게 갖다 둔 과일|돈을 받자마자 참외 세 개를 갖다 둔 마음은 무엇일까요?
+a|장마|참외 장사를 망쳐 밑천을 까먹게 한 일|황수건의 실패는 어디까지가 그의 탓일까요?
+s|돈은 남지 못하면 돌려오지 않아도 좋다|‘나’가 삼 원을 주며 한 말|이 말에서 ‘나’의 어떤 태도가 보이나요?
+s|평생 동서 밑에 살아야 할 신세|아내가 달아난 까닭을 설명하는 대목|이 소설에서 가장 힘없는 사람은 누구일까요?
+#grape|포도 다섯 송이
+n|직각하다|보거나 듣는 그 순간 곧바로 깨닫다|‘나’는 수건이가 포도를 훔쳐 온 것을 직각했다.|직각
+n|멱살|사람의 목 아래 옷깃을 여민 부분|뒤따라온 사람이 수건이의 멱살을 움켜쥐었다.
+n|벙긋거리다|입을 살짝 벌리며 소리 없이 자꾸 웃다|그는 벙긋거리며 포도를 내밀었다.|벙긋
+n|은근하다|겉으로 드러나지 않으면서 깊고 그윽하다|‘나’는 포도에서 은근한 마음을 본다.|은근
+n|순정|순수하고 거짓 없는 마음|그의 순정의 열매를 먹듯 포도를 먹었다.
+a|포도|황수건이 ‘나’에게 가져온 선물이자 훔친 물건|훔친 포도를 선물로 받은 ‘나’는 왜 나무라지 않았을까요?
+s|선생님 잡수라고 사왔습죠|황수건이 포도를 내밀며 한 말|왜 그는 훔쳐 온 것을 샀다고 말했을까요?
+s|포돗값을 물어 주고 보니 수건이는 어느 틈에 사라지고|매를 말린 뒤 ‘나’가 본 일|황수건은 왜 말없이 사라졌을까요?
+s|은근한 순정의 열매를 먹듯|‘나’가 포도를 아껴 먹는 모습을 그린 말|‘나’에게 이 포도는 왜 도둑질의 증거가 아니라 열매일까요?
+#moon|달밤
+n|깁|명주실로 조금 거칠게 짠 비단|밝은 달빛을 깁에 빗대었다.
+n|무안하다|부끄러워 볼 낯이 없다|‘나’는 그가 무안해할 일을 생각한다.|무안
+n|휘적거리다|걸을 때 두 팔을 자꾸 휘젓다|큰길이 좁다는 듯이 휘적거리며 내려왔다.|휘적
+n|유감하다|마음에 느끼는 바가 있다|달밤은 그에게도 유감한 듯하였다.|유감
+n|되풀이하다|같은 말이나 일을 자꾸 하다|첫 줄 한 줄만 되풀이했다.|되풀이
+a|달밤|소설의 제목이자 마지막 장면의 배경|왜 제목이 ‘황수건’이 아니라 ‘달밤’일까요?
+a|담배|전에는 없던 모습으로 황수건이 빨며 지나간 것|그는 이제 어떤 마음일까요?
+a|나무 그늘|‘나’가 황수건을 피해 몸을 숨긴 곳|숨어 준 것이 배려일까요, 거리일까요?
+s|밝은 달빛이 깁을 깐 듯하였다|마지막 장면에서 성북동 길을 그린 말|아름다운 달빛과 황수건의 처지는 어떻게 겹치나요?
+s|큰길이 좁다는 듯이 휘적거리며|술 취한 듯 내려오는 황수건의 모습|이 걸음걸이에서 무엇이 느껴지나요?
+s|나무 그늘에 몸을 감추었다|아는 체하려다 그만둔 ‘나’의 행동|내가 ‘나’였다면 어떻게 했을까요?
+s|첫 줄 한 줄만 되풀이하면서|황수건이 노래를 부르는 모습|끝까지 부르지 못하는 노래가 그의 삶과 닮았나요?
+s|달밤은 그에게도 유감한 듯하였다|소설의 마지막 문장|‘그에게도’의 ‘도’에는 누구의 마음이 담겨 있을까요?`;
+const ZONES=[],BUILTIN=[];
 const hash=s=>{let h=7;for(const ch of s)h=(h*31+ch.codePointAt(0))>>>0;return h};
-const BUILTIN=ZONES.flatMap(z=>z.words.trim().split("\n").map(l=>{
-  const [word,pos,mean,ex,r,forms]=l.split("|");
-  return {id:"w"+hash(word),word,pos,mean,ex,rare:+r,zone:z.id,forms:forms?forms.split(","):null};
-}));
-const MISSIONS=[
- {id:"m1",title:"쉬는 시간 10분",prompt:"오늘 쉬는 시간에 본 장면을 글로 찍어 보세요. 소리와 움직임이 들리듯 써 봅니다.",need:3,chars:100,posNeed:"s"},
- {id:"m2",title:"감정 숨기기",prompt:"‘슬프다, 기쁘다, 화나다’를 쓰지 않고 그 마음을 한 장면으로 보여 주세요.",need:3,chars:120,ban:["슬프","슬퍼","슬픈","기쁘","기뻐","기쁜","화나","화가"]},
- {id:"m3",title:"낯선 만남",prompt:"서로 다른 갈래의 낱말들을 한 이야기 안에서 만나게 해 주세요.",need:3,chars:150,zones:3},
- {id:"m4",title:"1년 뒤의 나에게",prompt:"1년 뒤의 나에게 짧은 편지를 씁니다. 평소에 잘 쓰지 않던 낱말을 꼭 넣어 보세요.",need:2,chars:120,rareNeed:2}
+const POS={n:{name:"낱말",c:"#86d6f7"},a:{name:"키워드",c:"#ffd23f"},s:{name:"구절",c:"#ff7d9c"}};
+const RARE={n:1,a:2,s:3};
+RAW.split("\n").forEach(l=>{
+  if(l[0]==="#"){const [id,name]=l.slice(1).split("|");ZONES.push({id,name});return}
+  const [pos,word,mean,ex,forms]=l.split("|");
+  BUILTIN.push({id:"w"+hash(word),word,pos,mean,ex,rare:RARE[pos],zone:ZONES[ZONES.length-1].id,forms:forms?forms.split(","):null});
+});
+const LINE=30,PARTS=[
+ {t:"처음",lines:4,q:"이 소설을 읽고 가장 먼저 든 느낌은 무엇인가요? 황수건을 처음 만났을 때 어떤 사람이라고 생각했나요?"},
+ {t:"마음에 남은 구절",lines:6,q:"채집한 구절 하나를 그대로 옮겨 적고, 그 구절이 왜 마음에 남았는지 어떤 장면인지와 함께 써 보세요."},
+ {t:"황수건과 ‘나’",lines:6,q:"키워드를 넣어 황수건의 꿈과 실패를 써 보세요. ‘나’는 왜 나무 그늘에 숨었을까요? 내가 ‘나’였다면 어떻게 했을까요?"},
+ {t:"끝",lines:4,q:"이 소설은 오늘을 사는 나에게 무엇을 생각하게 하나요? 내 주변의 황수건은 누구일까요? 제목이 ‘달밤’인 까닭도 함께 생각해 보세요."}
 ];
+const NEED={n:3,a:2,s:1,zones:3};
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const zoneOf=id=>ZONES.find(z=>z.id===id);
@@ -230,10 +241,10 @@ const reduced=matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* ---------- 상태 ---------- */
 const parseWords=text=>text.split("\n").map(l=>l.split("|").map(x=>x.trim())).filter(p=>p[0]&&p[1]).slice(0,60).map(([word,mean,ex])=>({
-  id:"c"+hash(word),word,mean,ex:ex||"",pos:/다$/.test(word)?"v":"n",rare:2,custom:true,zone:ZONES[hash(word)%ZONES.length].id}));
+  id:"c"+hash(word),word,mean,ex:ex||"",pos:/\s/.test(word)?"s":"n",rare:/\s/.test(word)?3:1,custom:true,zone:ZONES[hash(word)%ZONES.length].id}));
 
-const KEY="naltmal-v1";
-let S={name:"",caught:{},bloom:{},works:[],draft:"",mission:"m1"};
+const KEY="dalbam-v1";
+let S={name:"",caught:{},bloom:{},works:[],parts:["","","",""]};
 try{const raw=localStorage.getItem(KEY);if(raw)S={...S,...JSON.parse(raw)}}catch(e){}
 let CFG={mission:null,words:[]};
 const toB64=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
@@ -247,15 +258,13 @@ try{
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 const allWords=()=>BUILTIN.concat(CFG.words||[]);
 const wordById=id=>allWords().find(w=>w.id===id);
+const squash=t=>t.replace(/\s+/g,"");
 function stems(w){
   if(w.forms)return w.forms;
-  if(w.pos!=="v"&&w.pos!=="a")return [w.word];
-  let s=w.word.replace(/다$/,"").replace(/하$/,"");
-  const last=s.charCodeAt(s.length-1)-0xAC00;
-  if(s.length>2&&last>=0&&last%28===17)s=s.slice(0,-1);
-  return [s];
+  if(w.pos==="n"&&/다$/.test(w.word))return [w.word.replace(/다$/,"").replace(/하$/,"")];
+  return [w.word];
 }
-const hasWord=(text,w)=>stems(w).some(s=>text.includes(s));
+const hasWord=(text,w)=>{const t=squash(text);return stems(w).some(s=>t.includes(squash(s)))};
 const usedIn=text=>Object.keys(S.caught).map(wordById).filter(Boolean).filter(w=>hasWord(text,w));
 
 /* ---------- 낱말이 그리기 ---------- */
@@ -351,13 +360,13 @@ async function startAR(){
   let motion="granted";
   if(window.DeviceOrientationEvent&&typeof DeviceOrientationEvent.requestPermission==="function"){try{motion=await DeviceOrientationEvent.requestPermission()}catch(e){motion="denied"}}
   addEventListener("deviceorientation",aimFrom);
-  camOK=await camOn();started=true;ov.hidden=true;ov.innerHTML="";fill();sizeAR();go();
+  camOK=await camOn();started=true;ov.hidden=true;ov.innerHTML="";fill();tally();sizeAR();go();
   if(!camOK)toast("카메라를 켜지 못했어요. 브라우저에서 카메라를 허용하면 교실이 보입니다");
   setTimeout(()=>{if(!sensor)toast("방향 센서를 쓸 수 없어요. 화면을 끌어서 둘러보세요")},1800);
 }
 function intro(){
   ov.className="over";ov.hidden=false;
-  ov.innerHTML=`<div class="panel"><h2>교실에서 낱말을 찾아요</h2><p>카메라로 교실을 비추고 휴대폰을 위아래, 좌우로 돌려 보세요. 낱말이가 숨어 있어요.</p><p class="lead">자리에서 할 수 있어요. 카메라 영상은 화면에만 보이고 저장되거나 전송되지 않습니다.</p><div class="row"><button class="btn" id="go" type="button">카메라 켜고 시작</button></div></div>`;
+  ov.innerHTML=`<div class="panel"><h2>《달밤》을 채집해요</h2><p>카메라로 교실을 비추고 휴대폰을 위아래, 좌우로 돌려 보세요. 소설 속 낱말과 키워드, 구절이 숨어 있어요.</p><p class="lead">자리에서 할 수 있어요. 카메라 영상은 화면에만 보이고 저장되거나 전송되지 않습니다.</p><div class="row"><button class="btn" id="go" type="button">카메라 켜고 시작</button></div></div>`;
   $("#go").onclick=startAR;
 }
 
@@ -365,9 +374,9 @@ function intro(){
 const ov=$("#overlay");
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function startCatch(m){
-  const w=m.w,others=shuffle(allWords().filter(x=>x.id!==w.id&&x.pos===w.pos)).concat(shuffle(allWords().filter(x=>x.pos!==w.pos))).slice(0,2),opts=shuffle([w,...others]);
+  const w=m.w,others=shuffle(allWords().filter(x=>x.id!==w.id&&x.pos===w.pos)).slice(0,2),opts=shuffle([w,...others]);
   runAR(false);ov.className="over cam";ov.hidden=false;
-  ov.innerHTML=`<canvas id="ring" width="640" height="640"></canvas><div id="catchTop">${esc(w.word)}</div><div id="catchSub">${POS[w.pos].name} · ${"★".repeat(w.rare)} · 이 낱말의 뜻은 무엇일까요?</div><div class="opts" id="catchOpts">${opts.map(o=>`<button type="button" data-id="${o.id}">${esc(o.mean)}</button>`).join("")}</div>`;
+  ov.innerHTML=`<canvas id="ring" width="640" height="640"></canvas><div id="catchTop" ${w.word.length>9?'style="font-size:clamp(20px,5.6vw,28px)"':""}>${esc(w.word)}</div><div id="catchSub">${POS[w.pos].name} · ${"★".repeat(w.rare)} · ${w.pos==="n"?"이 낱말의 뜻은 무엇일까요?":w.pos==="a"?"소설에서 이것은 무엇일까요?":"이 구절은 어떤 대목일까요?"}</div><div class="opts" id="catchOpts">${opts.map(o=>`<button type="button" data-id="${o.id}">${esc(o.mean)}</button>`).join("")}</div>`;
   const rc=$("#ring").getContext("2d");let phase="quiz",tries=1,ringR=1.7,dir=-1,alive=true,last=performance.now();
   const speed=(w.rare===3?1.5:w.rare===2?1.15:.85)*(reduced?.55:1);
   const draw=now=>{
@@ -390,7 +399,7 @@ function startCatch(m){
     b.classList.add(right?"right":"wrong");
     if(!right)$(`#catchOpts [data-id="${w.id}"]`).classList.add("right");
     tries=right?3:1;phase="wait";
-    $("#catchSub").textContent=right?"맞았어요! 그물 3개를 받았어요.":"다시 익혀 두세요. 그물 1개로 도전합니다.";
+    $("#catchSub").textContent=right?"맞았어요! 그물 3개를 받았어요.":"정답을 확인해 두세요. 그물 1개로 도전합니다.";
     setTimeout(()=>{
       if(!alive)return;
       phase="throw";
@@ -401,8 +410,8 @@ function startCatch(m){
         if(Math.abs(ringR-1.2)<.17){
           phase="done";S.caught[w.id]={t:Date.now()};save();
           $("#catchTop").textContent="채집 성공!";
-          $("#catchSub").textContent=`${w.word}: ${w.mean}`;
-          $("#catchOpts").innerHTML=`<div style="font-family:var(--pen)">${esc(w.ex)}</div><button class="btn" id="done" type="button" style="text-align:center;box-shadow:3px 3px 0 var(--sun)">채집통에 넣기</button>`;
+          $("#catchSub").textContent=w.mean;
+          $("#catchOpts").innerHTML=`<div style="font-family:var(--pen);background:rgba(32,36,107,.86);padding:6px 10px;border-radius:6px">${w.pos==="n"?"":"생각거리: "}${esc(w.ex)}</div><button class="btn" id="done" type="button" style="text-align:center;box-shadow:3px 3px 0 var(--sun)">채집통에 넣기</button>`;
           $("#done").addEventListener("click",close);$("#done").focus();
         }else{
           tries--;
@@ -424,64 +433,72 @@ let dexFilter="all";
 function renderDex(){
   const all=allWords(),n=all.filter(w=>S.caught[w.id]).length,bl=Object.keys(S.bloom).length;
   const list=all.filter(w=>dexFilter==="all"||w.pos===dexFilter);
-  $("#view-dex").innerHTML=`<div class="scroll"><section><h2>채집통</h2><p class="lead">${n===0?"아직 빈 채집통이에요. 교실에서 첫 낱말을 잡아 보세요.":`${all.length}개 중 ${n}개를 잡았고, ${bl}개를 내 글에 써서 꽃 피웠어요.`} 잡은 낱말을 글에 쓰면 머리에 꽃이 핍니다.</p>
+  $("#view-dex").innerHTML=`<div class="scroll"><section><h2>채집통</h2><p class="lead">${n===0?"아직 빈 채집통이에요. 교실에서 소설의 첫 조각을 잡아 보세요.":`${all.length}개 중 ${n}개를 잡았고, ${bl}개를 감상문에 써서 꽃 피웠어요.`} 잡은 것을 감상문에 쓰면 머리에 꽃이 핍니다.</p>
   <div class="row" id="dexChips"><button class="chip" type="button" data-f="all" aria-pressed="${dexFilter==="all"}">전체</button>${Object.entries(POS).map(([k,v])=>`<button class="chip" type="button" data-f="${k}" aria-pressed="${dexFilter===k}">${v.name}</button>`).join("")}</div></section>
-  <div class="dex">${list.map(w=>S.caught[w.id]?`<button type="button" class="spec hit" data-id="${w.id}">${S.bloom[w.id]?'<span class="stamp">글에 씀</span>':""}<img alt="" src="${portrait(w)}"><b>${esc(w.word)}</b><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span><span class="stars">${"★".repeat(w.rare)}</span></button>`:`<div class="spec miss"><b>?</b><small>${esc(zoneOf(w.zone).name)}</small><span class="stars">${"★".repeat(w.rare)}</span></div>`).join("")}</div></div>`;
+  <div class="dex">${list.map(w=>S.caught[w.id]?`<button type="button" class="spec hit" data-id="${w.id}">${S.bloom[w.id]?'<span class="stamp">글에 씀</span>':""}<img alt="" src="${portrait(w)}"><b style="${w.word.length>9?"font-size:15px":""}">${esc(w.word)}</b><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span><span class="stars">${"★".repeat(w.rare)}</span></button>`:`<div class="spec miss"><b>?</b><small>${esc(zoneOf(w.zone).name)} · ${POS[w.pos].name}</small><span class="stars">${"★".repeat(w.rare)}</span></div>`).join("")}</div></div>`;
   $("#dexChips").onclick=e=>{const f=e.target.dataset.f;if(f){dexFilter=f;renderDex()}};
   $("#view-dex .dex").onclick=e=>{const b=e.target.closest(".hit");if(b)showWord(wordById(b.dataset.id))};
 }
 function showWord(w){
   ov.className="over light";ov.hidden=false;
-  ov.innerHTML=`<div class="panel"><div class="row"><img alt="" src="${portrait(w)}" width="72" height="72"><div><h2>${esc(w.word)}</h2><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span> <span class="stars">${"★".repeat(w.rare)}</span> <small>${esc(zoneOf(w.zone).name)} 갈래</small></div></div><p>${esc(w.mean)}</p>${w.ex?`<p style="font-family:var(--pen)">예문: ${esc(w.ex)}</p>`:""}${S.bloom[w.id]?`<p class="note" style="font-family:var(--pen)">내 문장: ${esc(S.bloom[w.id])}</p>`:`<p class="lead">아직 글에 쓰지 않았어요.</p>`}<div class="row"><button class="btn" id="wClose" type="button">닫기</button></div></div>`;
+  ov.innerHTML=`<div class="panel"><div class="row"><img alt="" src="${portrait(w)}" width="72" height="72"><div><h2 style="${w.word.length>9?"font-size:19px":""}">${esc(w.word)}</h2><span class="tag" style="--pos:${POS[w.pos].c}">${POS[w.pos].name}</span> <span class="stars">${"★".repeat(w.rare)}</span> <small>${esc(zoneOf(w.zone).name)} 장면</small></div></div><p>${esc(w.mean)}</p>${w.ex?`<p style="font-family:var(--pen)">${w.pos==="n"?"소설에서":"생각거리"}: ${esc(w.ex)}</p>`:""}${S.bloom[w.id]?`<p class="note" style="font-family:var(--pen)">내 문장: ${esc(S.bloom[w.id])}</p>`:`<p class="lead">아직 감상문에 쓰지 않았어요.</p>`}<div class="row"><button class="btn" id="wClose" type="button">닫기</button></div></div>`;
   $("#wClose").onclick=()=>{ov.hidden=true;ov.innerHTML=""};$("#wClose").focus();
 }
 
-/* ---------- 글쓰기 ---------- */
-const missions=()=>CFG.mission?[{id:"t",need:3,chars:100,...CFG.mission},...MISSIONS]:MISSIONS;
-const curMission=()=>missions().find(m=>m.id===S.mission)||missions()[0];
-function checks(m,text){
-  const used=usedIn(text),out=[{ok:used.length>=m.need,label:`채집한 낱말 ${m.need}개 이상 쓰기 (${used.length}개)`},{ok:text.trim().length>=m.chars,label:`${m.chars}자 이상 쓰기 (${text.trim().length}자)`}];
-  if(m.posNeed)out.push({ok:used.some(w=>w.pos===m.posNeed),label:`${POS[m.posNeed].name} 1개 넣기`});
-  if(m.zones){const z=new Set(used.map(w=>w.zone)).size;out.push({ok:z>=m.zones,label:`서로 다른 갈래 ${m.zones}가지 이상 (${z}가지)`})}
-  if(m.rareNeed)out.push({ok:used.some(w=>w.rare>=m.rareNeed),label:`★${m.rareNeed} 이상 낱말 1개 넣기`});
-  if(m.ban){const hit=m.ban.some(b=>text.includes(b));out.push({ok:!hit,bad:hit,label:hit?"금지된 감정 낱말을 다른 장면으로 바꿔 보세요":"감정 낱말 직접 쓰지 않기"})}
+/* ---------- 감상문 ---------- */
+const clean=t=>t.replace(/\s+/g," ").trim();
+const linesOf=t=>Math.floor(clean(t).length/LINE);
+const allText=()=>S.parts.join("\n");
+let lastPart=0;
+function checks(text){
+  const used=usedIn(text),count=p=>used.filter(w=>w.pos===p).length,z=new Set(used.map(w=>w.zone)).size,L=S.parts.reduce((a,t)=>a+clean(t).length,0),total=Math.floor(L/LINE);
+  const out=[{ok:total>=20,label:`전체 20줄 이상 (${total}줄)`}];
+  PARTS.forEach((p,i)=>out.push({ok:linesOf(S.parts[i])>=p.lines,label:`${p.t} ${p.lines}줄 이상 (${linesOf(S.parts[i])}줄)`}));
+  out.push({ok:count("s")>=NEED.s,label:`구절 ${NEED.s}개 이상 옮겨 쓰기 (${count("s")}개)`},{ok:count("a")>=NEED.a,label:`키워드 ${NEED.a}개 이상 쓰기 (${count("a")}개)`},{ok:count("n")>=NEED.n,label:`낱말 ${NEED.n}개 이상 쓰기 (${count("n")}개)`},{ok:z>=NEED.zones,label:`서로 다른 장면 ${NEED.zones}곳 이상 (${z}곳)`});
   return out;
 }
 function renderChecks(){
-  const m=curMission(),text=$("#draft").value,cs=checks(m,text),done=cs.every(c=>c.ok);
-  $("#checks").innerHTML=cs.map(c=>`<li class="${c.bad?"bad":c.ok?"ok":""}">${esc(c.label)}</li>`).join("");
-  document.querySelectorAll("#bank .chip").forEach(b=>{const w=wordById(b.dataset.id);b.classList.toggle("used",!!w&&hasWord(text,w))});
-  $("#post").disabled=!done||!$("#penName").value.trim();
-  $("#postWhy").textContent=!$("#penName").value.trim()?"필명을 적어 주세요.":done?"":"위 조건을 채우면 글을 저장할 수 있어요.";
+  const text=allText(),cs=checks(text),done=cs.every(c=>c.ok),L=S.parts.reduce((a,t)=>a+clean(t).length,0),pct=Math.min(100,Math.round(L/(20*LINE)*100));
+  $("#checks").innerHTML=cs.map(c=>`<li class="${c.ok?"ok":""}">${esc(c.label)}</li>`).join("");
+  $("#total").style.width=pct+"%";
+  PARTS.forEach((p,i)=>{$("#m"+i).textContent=`${linesOf(S.parts[i])} / ${p.lines}줄`});
+  document.querySelectorAll(".bank .chip").forEach(b=>{const w=wordById(b.dataset.id);b.classList.toggle("used",!!w&&hasWord(text,w))});
+  const noName=!$("#penName").value.trim();
+  $("#post").disabled=!done||noName;
+  $("#postWhy").textContent=noName?"이름을 적어 주세요.":done?"":"아래 조건을 모두 채우면 저장할 수 있어요.";
 }
 function renderWrite(){
-  const caught=allWords().filter(w=>S.caught[w.id]),m=curMission();
-  if(!caught.length){$("#view-write").innerHTML=`<div class="scroll"><section><h2>글쓰기</h2><p class="lead">글에 쓸 낱말이 아직 없어요. 채집 화면에서 낱말을 먼저 잡아 오세요.</p><div class="row"><a class="btn" href="#map" style="text-decoration:none;color:inherit">채집하러 가기</a></div></section></div>`;return}
-  const active=document.activeElement&&document.activeElement.id==="draft";
-  if(active)return;
+  const all=allWords().filter(w=>S.caught[w.id]);
+  if(!all.length){$("#view-write").innerHTML=`<div class="scroll"><section><h2>감상문</h2><p class="lead">감상문에 쓸 조각이 아직 없어요. 채집 화면에서 소설 속 낱말과 구절을 먼저 잡아 오세요.</p><div class="row"><a class="btn" href="#map" style="text-decoration:none;color:inherit">채집하러 가기</a></div></section></div>`;return}
+  if(document.activeElement&&/^part\d$/.test(document.activeElement.id))return;
+  const m=CFG.mission,group=p=>all.filter(w=>w.pos===p).map(w=>`<button class="chip" type="button" data-id="${w.id}">${esc(w.word)}</button>`).join("")||`<span class="lead">아직 없어요</span>`;
   $("#view-write").innerHTML=`<div class="scroll">
-  <section><label for="missionPick">오늘의 글감</label><select id="missionPick">${missions().map(x=>`<option value="${x.id}" ${x.id===m.id?"selected":""}>${esc(x.title)}</option>`).join("")}</select>
-  <div class="brief"><h3>${esc(m.title)}</h3><p>${esc(m.prompt)}</p></div></section>
-  <section><h2>내 낱말</h2><p class="lead">누르면 글에 들어가고, 글에 쓴 낱말은 초록색으로 바뀝니다.</p><div class="row" id="bank">${caught.map(w=>`<button class="chip" type="button" data-id="${w.id}" title="${esc(w.mean)}">${esc(w.word)}</button>`).join("")}</div></section>
-  <section><label for="draft">내 글</label><textarea id="draft" rows="7"></textarea><ul class="checks" id="checks"></ul></section>
-  <section><label for="penName">필명</label><input id="penName" type="text" maxlength="20" autocomplete="off"><div class="row"><button class="btn" id="post" type="button">글 저장하기</button><button class="btn ghost" id="copy" type="button">글 복사</button></div><p class="lead" id="postWhy"></p></section></div>`;
-  const d=$("#draft");d.value=S.draft||"";$("#penName").value=S.name||"";
-  $("#missionPick").onchange=e=>{S.mission=e.target.value;save();renderWrite()};
-  d.oninput=()=>{S.draft=d.value;save();renderChecks()};
+  <section><div class="brief"><h3>${esc(m?m.title:"《달밤》 감상문")}</h3><p>${esc(m?m.prompt:"채집한 조각을 넣어 네 단락으로 씁니다. 공책 한 줄을 30자로 세어, 모두 20줄 이상 쓰면 완성입니다.")}</p></div><div class="meter" role="img" aria-label="감상문 진행률"><i id="total"></i></div></section>
+  <section><h2>내 채집통</h2><p class="lead">누르면 쓰고 있는 단락에 들어갑니다. 구절은 따옴표와 함께 들어가고, 키워드와 구절은 생각거리도 보여 줍니다.</p><div id="think" class="note" hidden></div><label>구절</label><div class="row bank">${group("s")}</div><label>키워드</label><div class="row bank">${group("a")}</div><label>낱말</label><div class="row bank">${group("n")}</div></section>
+  ${PARTS.map((p,i)=>`<section><div class="row" style="justify-content:space-between"><h2>${i+1}. ${esc(p.t)}</h2><span id="m${i}" class="tag"></span></div><label for="part${i}">${esc(p.q)}</label><textarea id="part${i}" class="draft" rows="${p.lines+1}"></textarea></section>`).join("")}
+  <section><label for="penName">이름</label><input id="penName" type="text" maxlength="20" autocomplete="off"><ul class="checks" id="checks"></ul><div class="row"><button class="btn" id="post" type="button">감상문 저장하기</button><button class="btn ghost" id="copy" type="button">글 복사</button></div><p class="lead" id="postWhy"></p></section></div>`;
+  PARTS.forEach((p,i)=>{const d=$("#part"+i);d.value=S.parts[i]||"";d.onfocus=()=>{lastPart=i};d.oninput=()=>{S.parts[i]=d.value;save();renderChecks()}});
+  $("#penName").value=S.name||"";
   $("#penName").oninput=e=>{S.name=e.target.value;save();renderChecks()};
-  $("#bank").onclick=e=>{const b=e.target.closest(".chip");if(!b)return;const w=wordById(b.dataset.id),s=d.selectionStart??d.value.length;d.value=d.value.slice(0,s)+w.word+" "+d.value.slice(d.selectionEnd??s);d.focus();d.selectionStart=d.selectionEnd=s+w.word.length+1;S.draft=d.value;save();renderChecks()};
-  $("#copy").onclick=async()=>{const t=`[${curMission().title}] ${S.name||"익명"}\n\n${d.value}`;try{await navigator.clipboard.writeText(t);toast("글을 복사했어요")}catch(e){d.select();toast("글을 선택했어요. 직접 복사해 주세요")}};
+  $("#view-write").querySelectorAll(".bank").forEach(g=>g.onclick=e=>{
+    const b=e.target.closest(".chip");if(!b)return;
+    const w=wordById(b.dataset.id),d=$("#part"+lastPart),s=d.selectionStart??d.value.length,ins=(w.pos==="s"?`“${w.word}” `:w.word+" ");
+    d.value=d.value.slice(0,s)+ins+d.value.slice(d.selectionEnd??s);d.focus();d.selectionStart=d.selectionEnd=s+ins.length;S.parts[lastPart]=d.value;save();
+    const th=$("#think");th.hidden=false;th.textContent=w.pos==="n"?`${w.word}: ${w.mean}`:`생각거리: ${w.ex}`;renderChecks();
+  });
+  $("#copy").onclick=async()=>{const t=workText();try{await navigator.clipboard.writeText(t);toast("글을 복사했어요")}catch(e){toast("복사하지 못했어요. 글을 길게 눌러 복사해 주세요")}};
   $("#post").onclick=submit;
   renderChecks();
 }
+const workText=()=>`《달밤》 감상문 - ${S.name||"이름 없음"}\n\n${S.parts.map(t=>t.trim()).filter(Boolean).join("\n\n")}`;
 function submit(){
-  const text=$("#draft").value.trim(),m=curMission(),used=usedIn(text);
-  if(!checks(m,text).every(c=>c.ok))return;
-  const parts=text.split(/(?<=[.!?…。\n])\s*/);
-  used.forEach(w=>{S.bloom[w.id]=(parts.find(p=>hasWord(p,w))||text).slice(0,140)});
-  S.works.push({id:"p"+Date.now().toString(36),t:Date.now(),name:S.name.trim(),mission:m.title,text,words:used.map(w=>w.word)});
-  S.draft="";save();
-  toast("저장했어요. 쓴 낱말에 꽃이 피었어요!");
+  const text=S.parts.map(t=>t.trim()).join("\n\n"),used=usedIn(text);
+  if(!checks(text).every(c=>c.ok))return;
+  const sentences=text.split(/(?<=[.!?…\n])\s*/);
+  used.forEach(w=>{S.bloom[w.id]=(sentences.find(p=>hasWord(p,w))||text).slice(0,140)});
+  S.works.push({id:"p"+Date.now().toString(36),t:Date.now(),name:S.name.trim(),mission:"《달밤》 감상문",text,words:used.map(w=>w.word)});
+  S.parts=["","","",""];save();
+  toast("저장했어요. 쓴 조각에 꽃이 피었어요!");
   location.hash="wall";
 }
 
@@ -497,17 +514,17 @@ function workHTML(w){
 }
 function renderWall(){
   const all=allWords(),got=all.filter(w=>S.caught[w.id]).length,pct=Math.round(got/all.length*100),list=S.works.slice().reverse();
-  $("#view-wall").innerHTML=`<div class="scroll"><section><h2>내 글</h2><p class="lead">${all.length}개 중 ${got}개를 찾았어요.</p><div class="meter" role="img" aria-label="채집 진행률 ${pct}%"><i style="width:${pct}%"></i></div><p class="note">글은 이 기기에 저장됩니다. ‘복사’를 눌러 학급 게시판에 붙여 주세요.</p></section>
-  ${list.length?list.map(w=>workHTML(w)).join(""):`<p class="note">아직 쓴 글이 없어요. 글쓰기에서 첫 글을 써 보세요.</p>`}</div>`;
+  $("#view-wall").innerHTML=`<div class="scroll"><section><h2>내 감상문</h2><p class="lead">${all.length}개 중 ${got}개를 채집했어요.</p><div class="meter" role="img" aria-label="채집 진행률 ${pct}%"><i style="width:${pct}%"></i></div><p class="note">감상문은 이 기기에 저장됩니다. ‘복사’를 눌러 학급 게시판에 붙여 주세요.</p></section>
+  ${list.length?list.map(w=>workHTML(w)).join(""):`<p class="note">아직 저장한 감상문이 없어요.</p>`}</div>`;
   $("#view-wall").onclick=async e=>{const b=e.target.closest("[data-copy]");if(!b)return;const w=S.works.find(x=>x.id===b.dataset.copy),t=`[${w.mission}] ${w.name}\n\n${w.text}`;try{await navigator.clipboard.writeText(t);toast("글을 복사했어요")}catch(err){toast("복사하지 못했어요. 글을 길게 눌러 복사해 주세요")}};
 }
 
 /* ---------- 교사 ---------- */
 function renderTeacher(){
   $("#view-teacher").innerHTML=`<div class="scroll">
-  <section><h2>수업 진행 (40분)</h2><ol class="steps"><li><b>열기 5분</b> QR로 접속하고 카메라와 동작 센서를 허용합니다.</li><li><b>채집 15분</b> 교실을 비추며 낱말을 모읍니다.</li><li><b>글쓰기 15분</b> 글감 조건을 채워 글을 씁니다.</li><li><b>나눔 5분</b> 글을 학급 게시판에 올려 낱말을 잘 살린 문장을 함께 읽습니다.</li></ol></section>
-  <section><h2>오늘의 글감</h2><label for="tTitle">제목</label><input id="tTitle" type="text" maxlength="30" value="${esc(CFG.mission?.title||"")}"><label for="tPrompt">안내 문장</label><textarea id="tPrompt" rows="3">${esc(CFG.mission?.prompt||"")}</textarea></section>
-  <section><h2>우리 반 낱말 추가</h2><p class="lead">한 줄에 하나씩 <b>낱말 | 뜻 | 예문</b>으로 적으세요. ★★ 낱말로 나타납니다.</p><label for="tWords">낱말 목록</label><textarea id="tWords" rows="5" placeholder="관용구 | 두 낱말 이상이 굳어져 특별한 뜻을 나타내는 말 | 관용구를 넣어 문장을 지었다.">${esc((CFG.words||[]).map(w=>[w.word,w.mean,w.ex].join(" | ")).join("\n"))}</textarea></section>
+  <section><h2>수업 진행</h2><ol class="steps"><li><b>채집 15분</b> 소설을 읽은 뒤 QR로 접속해 낱말, 키워드, 구절을 모읍니다.</li><li><b>감상문 25분</b> 네 단락의 안내를 따라 20줄 이상 씁니다. 분량이 많으면 과제나 다음 차시로 이어 가세요.</li></ol><p class="note">‘반편’, ‘못난이’는 소설 속 표현입니다. 낱말 뜻에 차별 표현임을 밝혀 두었으니, 수업에서 오늘날 왜 쓰면 안 되는지 함께 짚어 주세요.</p></section>
+  <section><h2>오늘의 안내</h2><p class="lead">비워 두면 기본 안내가 나옵니다.</p><label for="tTitle">제목</label><input id="tTitle" type="text" maxlength="30" value="${esc(CFG.mission?.title||"")}"><label for="tPrompt">안내 문장</label><textarea id="tPrompt" rows="3">${esc(CFG.mission?.prompt||"")}</textarea></section>
+  <section><h2>채집 조각 추가</h2><p class="lead">한 줄에 하나씩 <b>말 | 뜻 | 소설 속 쓰임이나 생각거리</b>로 적으세요. 띄어쓰기가 있으면 구절로 나타납니다.</p><label for="tWords">낱말 목록</label><textarea id="tWords" rows="5" placeholder="쭐럭거리다 | 잘난 체하며 으스대다 | 배달복을 입고 쭐럭거리는 것을 보리라 하였다.">${esc((CFG.words||[]).map(w=>[w.word,w.mean,w.ex].join(" | ")).join("\n"))}</textarea></section>
   <div class="row"><button class="btn" id="tMake" type="button">학생용 QR 만들기</button></div>
   <section id="tOut" hidden><h2>학생용 QR</h2><div id="qr"></div><input id="tLink" type="text" readonly aria-label="학생용 링크"><div class="row"><button class="btn ghost" id="tCopy" type="button">링크 복사</button></div></section></div>`;
   $("#tMake").onclick=()=>{
@@ -525,7 +542,7 @@ function renderTeacher(){
 /* ---------- 틀 ---------- */
 let tab="map",teacherSeen=location.hash==="#teacher";
 function buildTabs(){
-  const list=[["map","채집"],["dex","채집통"],["write","글쓰기"],["wall","내 글"]];
+  const list=[["map","채집"],["dex","채집통"],["write","감상문"],["wall","내 글"]];
   if(location.hash==="#teacher"||teacherSeen||!fromLink)list.push(["teacher","교사"]);
   const nav=$("#tabs");nav.style.setProperty("--tabs",list.length);
   nav.innerHTML=list.map(([k,v])=>`<button type="button" data-t="${k}" ${tab===k?'aria-current="page"':""}>${v}</button>`).join("");
